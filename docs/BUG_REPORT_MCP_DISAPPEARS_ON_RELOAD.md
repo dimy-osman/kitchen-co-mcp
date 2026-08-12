@@ -1,6 +1,6 @@
 # Bug report: Kitchen MCP disappears after Cursor window reload
 
-**Project:** Kitchen.co MCP (`dimy-osman/kitchen-co-mcp`, KTCH-MCP)  
+**Project:** Kitchen.co MCP (`dimy-osman/kitchen-co-mcp`)
 **Version:** `0.1.0` (VSIX installed in Cursor)  
 **Environment:** Cursor 3.14.x / VS Code 1.128.x, Windows 10  
 **Date observed:** 2026-08-12  

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — 2026-08-12
+
+### Changed
+- Icon: transparent background with equal padding; white hat fill, black outline
+- Removed internal project codename from public-facing copy
+- Quiet startup notifications (errors only); one-time setup prompt
+
 ## 0.2.2 — 2026-08-12
 
 ### Changed
@@ -38,4 +45,4 @@
 
 ## 0.1.0 — 2026-08-12
 
-- Initial unofficial Kitchen.co MCP extension (KTCH-MCP)
+- Initial unofficial Kitchen.co MCP extension

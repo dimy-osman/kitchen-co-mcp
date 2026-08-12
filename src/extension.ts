@@ -161,7 +161,7 @@ async function showAbout(): Promise<void> {
   const version = extensionContext.extension.packageJSON.version as string;
   const text = [
     DISCLAIMER_TITLE,
-    `Version ${version} · KTCH-MCP · Dimy Osman`,
+    `Version ${version} · Dimy Osman`,
     "",
     DISCLAIMER_BODY,
   ].join("\n");

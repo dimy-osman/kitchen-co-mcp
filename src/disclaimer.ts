@@ -13,7 +13,7 @@ export const DISCLAIMER_TITLE = "Kitchen.co MCP — unofficial notice";
 export const DISCLAIMER_BODY = [
   "This is NOT an official Kitchen.co extension.",
   "",
-  "It is an independent, third-party project (KTCH-MCP) by Dimy Osman.",
+  "It is an independent, third-party project by Dimy Osman.",
   "It is not affiliated with, endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates.",
   "",
   "Using this software does NOT grant you any legal rights, licenses, trademarks, partnership, or support from Kitchen.co.",

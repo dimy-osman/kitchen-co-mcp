@@ -1,6 +1,6 @@
 # Kitchen.co MCP (Unofficial)
 
-**Unofficial** community extension by [Dimy Osman](https://github.com/dimy-osman) — project code **KTCH-MCP**.
+**Unofficial** community extension by [Dimy Osman](https://github.com/dimy-osman).
 
 > **Not affiliated with Kitchen.co.** This project is **not** an official Kitchen.co product, plugin, or service. It is **not** endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates. “Kitchen” and “Kitchen.co” are marks of their respective owners; use here is for identification only and does **not** imply any partnership, license, or grant of rights.
 
