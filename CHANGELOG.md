@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-08-12
+
+### Changed
+- Official extension icon from custom Kitchen MCP SVG (chef-hat + MCP)
+
 ## 0.2.0 — 2026-08-12
 
 ### Security

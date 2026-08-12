@@ -2,7 +2,7 @@
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
   "description": "Unofficial community MCP bridge for the Kitchen.co API (by Dimy Osman). NOT affiliated with or endorsed by Kitchen.co. Use your own API token. AS IS — no warranty.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
