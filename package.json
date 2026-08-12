@@ -2,12 +2,17 @@
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
   "description": "Unofficial community MCP bridge for the Kitchen.co API (by Dimy Osman). NOT affiliated with or endorsed by Kitchen.co. Use your own API token. AS IS — no warranty.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
   },
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0F766E",
+    "theme": "dark"
+  },
   "homepage": "https://github.com/dimy-osman/kitchen-co-mcp",
   "repository": {
     "type": "git",
@@ -16,6 +21,7 @@
   "bugs": {
     "url": "https://github.com/dimy-osman/kitchen-co-mcp/issues"
   },
+  "qna": "https://github.com/dimy-osman/kitchen-co-mcp/issues",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -36,6 +42,15 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Profiles and secrets are stored in user global state / SecretStorage, not the workspace."
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -82,7 +97,17 @@
         "kitchenMcp.persistToUserMcpJson": {
           "type": "boolean",
           "default": true,
-          "description": "Write/merge Kitchen servers into ~/.cursor/mcp.json so they survive window reload. API keys stay in SecretStorage + a local envFile (never plaintext in mcp.json)."
+          "description": "Write/merge Kitchen servers into ~/.cursor/mcp.json so they survive window reload. Never writes plaintext API keys into mcp.json."
+        },
+        "kitchenMcp.writePlaintextEnvFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Materialize short-lived 0600 env files under globalStorage so Cursor can spawn durable MCP servers. Disable to use OS env ${env:VAR} only (more secure, more setup)."
+        },
+        "kitchenMcp.wipeEnvFilesOnDeactivate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Overwrite and delete materialized env files when the extension deactivates. Keys remain in SecretStorage + encrypted vault and are rematerialized on next activate."
         }
       }
     }
@@ -95,7 +120,8 @@
     "watch": "tsc -watch -p ./",
     "watch:mcp": "tsc -watch -p ./mcp",
     "package": "npm run compile && vsce package",
-    "lint": "tsc -p ./ --noEmit && tsc -p ./mcp --noEmit"
+    "lint": "tsc -p ./ --noEmit && tsc -p ./mcp --noEmit",
+    "audit": "npm audit --omit=dev"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",

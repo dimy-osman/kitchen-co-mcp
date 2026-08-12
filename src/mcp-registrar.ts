@@ -9,6 +9,7 @@ import {
 } from "./durable-mcp";
 import { logError, logInfo, logWarn } from "./log";
 import { KitchenProfile, ProfileStore, mcpServerName } from "./profiles";
+import { assertInsideDirectory, redactSecrets } from "./security";
 
 export type RegisterAllResult = {
   ok: number;
@@ -22,7 +23,6 @@ export type RegisterAllResult = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class McpRegistrar {
-  /** Names successfully registered via Cursor extension API this session. */
   private registered = new Set<string>();
 
   constructor(
@@ -31,17 +31,17 @@ export class McpRegistrar {
   ) {}
 
   private mcpEntryPath(): string {
-    return path.join(this.context.extensionPath, "mcp", "dist", "index.js");
+    return assertInsideDirectory(
+      path.join(this.context.extensionPath, "mcp", "dist", "index.js"),
+      this.context.extensionPath,
+      "MCP entry"
+    );
   }
 
   isDynamicallyRegistered(serverName: string): boolean {
     return this.registered.has(serverName);
   }
 
-  /**
-   * Unregister a single server (e.g. Remove Profile).
-   * Do NOT call on deactivate — that caused MCP to vanish on reload (#1).
-   */
   unregisterServer(serverName: string): void {
     const api = getCursorMcpApi();
     try {
@@ -72,10 +72,6 @@ export class McpRegistrar {
     return undefined;
   }
 
-  /**
-   * Sync all profiles to durable ~/.cursor/mcp.json and (when available)
-   * re-register via Cursor extension API. Idempotent.
-   */
   async registerAll(options?: {
     previousNames?: Map<string, string>;
   }): Promise<RegisterAllResult> {
@@ -88,6 +84,10 @@ export class McpRegistrar {
     const persist = vscode.workspace
       .getConfiguration("kitchenMcp")
       .get<boolean>("persistToUserMcpJson", true);
+
+    const writeEnvFile = vscode.workspace
+      .getConfiguration("kitchenMcp")
+      .get<boolean>("writePlaintextEnvFile", true);
 
     const api = await this.waitForCursorMcpApi();
     const apiReady = Boolean(api);
@@ -109,7 +109,7 @@ export class McpRegistrar {
       const apiKey = await this.store.getApiKey(profile.id);
       if (!apiKey) {
         skipped += 1;
-        const msg = `Profile "${profile.name}" has no API key in SecretStorage — re-add the key.`;
+        const msg = `Profile "${profile.name}" has no API key — re-add the key.`;
         errors.push(msg);
         logError(msg);
         continue;
@@ -117,7 +117,6 @@ export class McpRegistrar {
 
       const previousServerName = options?.previousNames?.get(profile.id);
 
-      // P0: durable Cursor mcp.json (survives reload)
       if (persist) {
         try {
           upsertDurableMcpEntry({
@@ -126,27 +125,27 @@ export class McpRegistrar {
             profile,
             apiKey,
             previousServerName,
+            writeEnvFile,
           });
           durableOk += 1;
         } catch (err) {
-          const msg = `Durable mcp.json sync failed for "${profile.name}": ${
-            err instanceof Error ? err.message : String(err)
-          }`;
+          const msg = `Durable mcp.json sync failed for "${profile.name}": ${redactSecrets(
+            err instanceof Error ? err.message : String(err),
+            [apiKey]
+          )}`;
           errors.push(msg);
           logError(msg);
         }
       }
 
-      // Session registration (nice-to-have; durable config is the reload-safe path)
       if (api) {
         const dyn = await this.registerDynamic(profile, apiKey, api);
         if (dyn === "ok") {
           dynamicOk += 1;
         } else if (dyn !== "skipped") {
-          // Durable success still counts as ok for the profile
-          logWarn(dyn);
+          logWarn(redactSecrets(dyn, [apiKey]));
           if (!persist) {
-            errors.push(dyn);
+            errors.push(redactSecrets(dyn, [apiKey]));
           }
         }
       }
@@ -154,7 +153,9 @@ export class McpRegistrar {
       if (persist || api) {
         ok += 1;
         logInfo(
-          `Profile "${profile.name}" → ${name} (durable=${persist && durableEntryExists(name)}, dynamic=${this.registered.has(name)})`
+          `Profile "${profile.name}" → ${name} (durable=${
+            persist && durableEntryExists(name)
+          }, dynamic=${this.registered.has(name)})`
         );
       }
     }
@@ -181,11 +182,10 @@ export class McpRegistrar {
     const entry = this.mcpEntryPath();
 
     try {
-      // Replace same-name registration without a global unregisterAll
       try {
         api.unregisterServer(name);
       } catch {
-        // ignore if not present
+        // ignore
       }
 
       api.registerServer({
@@ -197,16 +197,21 @@ export class McpRegistrar {
             KITCHEN_BASE_URL: profile.baseUrl,
             KITCHEN_API_KEY: apiKey,
             KITCHEN_PROFILE_NAME: profile.name,
-            NODE_PATH: path.join(this.context.extensionPath, "node_modules"),
+            NODE_PATH: assertInsideDirectory(
+              path.join(this.context.extensionPath, "node_modules"),
+              this.context.extensionPath,
+              "node_modules"
+            ),
           },
         },
       });
       this.registered.add(name);
       return "ok";
     } catch (err) {
-      return `Dynamic register failed for "${profile.name}": ${
-        err instanceof Error ? err.message : String(err)
-      }`;
+      return `Dynamic register failed for "${profile.name}": ${redactSecrets(
+        err instanceof Error ? err.message : String(err),
+        [apiKey]
+      )}`;
     }
   }
 }

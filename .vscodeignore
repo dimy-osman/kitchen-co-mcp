@@ -17,7 +17,10 @@ tsconfig.json
 node_modules/**/.bin/**
 *.vsix
 .cursor/**
+docs/**
 **/*.md
 !README.md
 !LICENSE
 !NOTICE
+!CHANGELOG.md
+!SECURITY.md

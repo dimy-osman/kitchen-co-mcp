@@ -11,9 +11,10 @@ You must use **your own** Kitchen workspace URL and API token. This extension do
 ## What it does
 
 - Multiple workspace profiles (URL + API token pairs)
-- API tokens in **OS keychain** (`SecretStorage`) plus a local **envFile** under extension globalStorage
-- **Durable** entries merged into `~/.cursor/mcp.json` (survives window reload) — keys never written plaintext into that file
-- Optional session registration via Cursor’s `vscode.cursor.mcp.registerServer` API
+- Tokens in **OS keychain** (SecretStorage) + **AES-256-GCM encrypted vault**
+- Durable `~/.cursor/mcp.json` entries **without plaintext keys**
+- Optional short-lived env files for Cursor spawn (wiped on deactivate by default)
+- SSRF protections, path containment, secret redaction — see [SECURITY.md](./SECURITY.md)
 
 ## Disclaimer & legal
 
@@ -24,81 +25,56 @@ You must use **your own** Kitchen workspace URL and API token. This extension do
 - **AS IS.** Provided under the [MIT License](./LICENSE) with **no warranties**. The author is not liable for data loss, misuse, security incidents, or business impact from use of this tool.
 - **API changes.** Kitchen may change or restrict their API at any time; this extension may break without notice.
 
-## Security
-
-| Stored | Where |
-|--------|--------|
-| Profile name + base URL | Extension `globalState` |
-| API tokens | `SecretStorage` (OS keychain) + `globalStorage/env/kitchen-*.env` (envFile for Cursor) |
-| `~/.cursor/mcp.json` | Command/args/base URL only — **no API key plaintext** |
-| Git | **Never** — `.env`, `*.env`, `*.vsix`, build outputs gitignored |
-
-Do **not** commit real API keys. Create tokens in Kitchen → Settings → Developer → API Token; enter them only via **Add Profile** (password input).
+See also [NOTICE](./NOTICE).
 
 ## Install (VSIX)
 
-1. Build: `npm install && npm run package`
-2. Cursor: **Extensions → … → Install from VSIX…** → `kitchen-co-mcp-0.1.2.vsix`
-3. Acknowledge the unofficial notice (first run), then **Kitchen.co MCP: Add Profile**
-4. Enter name, workspace URL/slug, and API token
-5. Confirm under Cursor Settings → MCP and via **List Profiles** (`durable mcp.json: yes`)
+1. `npm install && npm run package`
+2. Cursor: **Extensions → … → Install from VSIX…** → `kitchen-co-mcp-0.2.0.vsix`
+3. Acknowledge the unofficial notice (first run), then **Add Profile**
+4. Confirm **List Profiles** shows `durable mcp.json: yes`
+
+### Marketplace
+
+Publish with your VSCE/Open VSX publisher account (`vsce publish` / `ovsx publish`). Publisher id: `dimy-osman`. This repo does not store marketplace login tokens.
 
 ## Commands
 
-- **About / Disclaimer** — unofficial status and legal notice
+- **About / Disclaimer**
 - **Add / Edit / Remove Profile**
-- **List Profiles** — key status, durable mcp.json yes/no, dynamic register yes/no
-- **Re-register MCP Servers** — sync durable + dynamic
+- **List Profiles**
+- **Re-register MCP Servers**
 - **Test Connection**
 - **Show Output Log**
 
 ## Settings
 
-- `kitchenMcp.autoRegister` (default `true`) — sync on startup
-- `kitchenMcp.persistToUserMcpJson` (default `true`) — merge into `~/.cursor/mcp.json`
-
-## Standalone MCP (manual)
-
-```json
-{
-  "mcpServers": {
-    "kitchen-acme": {
-      "command": "node",
-      "args": ["/absolute/path/to/kitchen-co-mcp/mcp/dist/index.js"],
-      "env": {
-        "KITCHEN_BASE_URL": "https://acme.kitchen.co",
-        "KITCHEN_API_KEY": "${env:KITCHEN_ACME_KEY}"
-      }
-    }
-  }
-}
-```
-
-Or use `envFile` pointing at a local file that defines `KITCHEN_API_KEY` (what the extension writes under globalStorage).
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `kitchenMcp.autoRegister` | `true` | Sync on startup |
+| `kitchenMcp.persistToUserMcpJson` | `true` | Durable mcp.json merge |
+| `kitchenMcp.writePlaintextEnvFile` | `true` | Short-lived env files for Cursor spawn |
+| `kitchenMcp.wipeEnvFilesOnDeactivate` | `true` | Wipe those env files on deactivate |
 
 ## MCP tools (selected)
 
 | Tool | Purpose |
 |------|---------|
 | `kitchen_whoami` | Auth probe (no key in response) |
-| `kitchen_list_tasks` / `kitchen_get_task` | Tasks |
+| `kitchen_list_*` / `kitchen_get_*` | Read resources |
 | `kitchen_create_task` / `kitchen_update_task` | Task writes |
-| `kitchen_list_boards` / `kitchen_get_board` | Boards |
-| `kitchen_list_conversations` / messages | Conversations |
-| `kitchen_list_files` / folders / invoices / clients / members / docs | Other resources |
-| `kitchen_request` | Low-level GET/POST/… under `/api` |
-
-API reference: https://developer.kitchen.co/ (Kitchen’s docs; not part of this project)
+| `kitchen_create_message` | Post conversation messages |
+| `kitchen_request` | Low-level same-origin `/api` calls |
 
 ## Develop
 
 ```bash
 npm install
 npm run compile
+npm run lint
+npm run audit
 npm run package
 ```
-
-Requirements: Node 20+, Cursor (recommended).
 
 ## License
 

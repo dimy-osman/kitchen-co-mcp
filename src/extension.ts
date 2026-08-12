@@ -9,6 +9,7 @@ import {
   durableEntryExists,
   envVarNameForProfile,
   userMcpJsonPath,
+  wipeAllEnvFiles,
 } from "./durable-mcp";
 import { getLog, logError, logInfo } from "./log";
 import { McpRegistrar } from "./mcp-registrar";
@@ -19,6 +20,7 @@ import {
   normalizeBaseUrlInput,
   promptForProfile,
 } from "./profiles";
+import { redactSecrets } from "./security";
 
 let store: ProfileStore;
 let registrar: McpRegistrar;
@@ -93,11 +95,26 @@ export async function activate(
 }
 
 /**
- * P0 (#1): Do NOT unregister MCP servers on deactivate.
+ * Do NOT unregister MCP servers on deactivate (reload bug #1).
+ * Optionally wipe short-lived plaintext env files; keys remain in
+ * SecretStorage + encrypted vault and are rematerialized on activate.
  */
 export function deactivate(): void {
+  const wipe = vscode.workspace
+    .getConfiguration("kitchenMcp")
+    .get<boolean>("wipeEnvFilesOnDeactivate", true);
+
+  if (wipe && extensionContext) {
+    try {
+      wipeAllEnvFiles(extensionContext.globalStorageUri);
+    } catch {
+      // ignore
+    }
+  }
+
   logInfo(
-    "deactivate: leaving MCP registrations intact (durable mcp.json + no unregister)"
+    "deactivate: MCP registrations left intact; env files " +
+      (wipe ? "wiped" : "kept")
   );
 }
 
@@ -307,9 +324,9 @@ async function testConnection(): Promise<void> {
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        logError(`Connection failed for ${profile.name}: ${message}`);
+        logError(`Connection failed for ${profile.name}: ${redactSecrets(message, [apiKey])}`);
         vscode.window.showErrorMessage(
-          `Kitchen.co MCP: connection failed for "${profile.name}": ${message}`
+          `Kitchen.co MCP: connection failed for "${profile.name}": ${redactSecrets(message, [apiKey])}`
         );
       }
     }

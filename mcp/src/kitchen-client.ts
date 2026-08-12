@@ -1,7 +1,7 @@
 /**
  * Thin Kitchen.co REST client.
- * Auth: Bearer API key. Base: https://{workspace}.kitchen.co
- * Docs: https://developer.kitchen.co/
+ * Auth: Bearer API key. Docs: https://developer.kitchen.co/
+ * SSRF hardened: only same-origin relative paths under configured https base.
  */
 
 export type KitchenClientOptions = {
@@ -22,20 +22,40 @@ export class KitchenApiError extends Error {
 
 function normalizeBaseUrl(baseUrl: string): string {
   let url = baseUrl.trim().replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(url)) {
-    url = `https://${url}`;
+  if (!/^https:\/\//i.test(url)) {
+    throw new Error("KITCHEN_BASE_URL must be https://");
   }
-  // Accept workspace slug, host, or full API root
   if (!/\/api$/i.test(url)) {
-    // https://acme.kitchen.co → https://acme.kitchen.co/api
     url = `${url}/api`;
   }
   return url;
 }
 
+function isBlockedHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h === "metadata.google.internal" ||
+    h.endsWith(".local") ||
+    h.endsWith(".internal")
+  ) {
+    return true;
+  }
+  if (/^(127|10|0)\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
+  if (/^169\.254\./.test(h)) return true;
+  if (h === "::1" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) {
+    return true;
+  }
+  return false;
+}
+
 export class KitchenClient {
   readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly originHost: string;
 
   constructor(opts: KitchenClientOptions) {
     if (!opts.apiKey?.trim()) {
@@ -46,6 +66,40 @@ export class KitchenClient {
     }
     this.baseUrl = normalizeBaseUrl(opts.baseUrl);
     this.apiKey = opts.apiKey.trim();
+    const parsed = new URL(this.baseUrl);
+    if (isBlockedHostname(parsed.hostname)) {
+      throw new Error("Refusing to use local/private API host");
+    }
+    this.originHost = parsed.hostname.toLowerCase();
+  }
+
+  private resolveUrl(path: string): URL {
+    // Absolute URLs only allowed to the same host (prevent SSRF via kitchen_request)
+    if (/^https?:\/\//i.test(path)) {
+      const abs = new URL(path);
+      if (abs.protocol !== "https:") {
+        throw new Error("Refusing non-HTTPS absolute URL");
+      }
+      if (abs.hostname.toLowerCase() !== this.originHost) {
+        throw new Error("Refusing absolute URL to a different host (SSRF protection)");
+      }
+      if (abs.username || abs.password) {
+        throw new Error("Refusing URL with embedded credentials");
+      }
+      return abs;
+    }
+
+    if (path.includes("://") || path.startsWith("//")) {
+      throw new Error("Invalid API path");
+    }
+
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    // Block path tricks that escape to other schemes
+    if (normalized.includes("\\") || /\s/.test(normalized)) {
+      throw new Error("Invalid API path characters");
+    }
+
+    return new URL(`${this.baseUrl.replace(/\/+$/, "")}${normalized}`);
   }
 
   async request<T = unknown>(
@@ -56,15 +110,26 @@ export class KitchenClient {
       body?: unknown;
     }
   ): Promise<T> {
-    const url = new URL(
-      path.startsWith("http")
-        ? path
-        : `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`
-    );
+    const allowed = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+    const verb = method.toUpperCase();
+    if (!allowed.includes(verb)) {
+      throw new Error(`Unsupported HTTP method: ${method}`);
+    }
+
+    const url = this.resolveUrl(path);
+    if (url.hostname.toLowerCase() !== this.originHost) {
+      throw new Error("Host mismatch after resolve (SSRF protection)");
+    }
+    if (isBlockedHostname(url.hostname)) {
+      throw new Error("Refusing local/private host");
+    }
 
     if (options?.query) {
       for (const [key, value] of Object.entries(options.query)) {
         if (value === undefined || value === null || value === "") continue;
+        if (!/^[A-Za-z0-9_.-]+$/.test(key)) {
+          throw new Error(`Invalid query parameter name: ${key}`);
+        }
         url.searchParams.set(key, String(value));
       }
     }
@@ -77,18 +142,23 @@ export class KitchenClient {
     };
 
     const res = await fetch(url, {
-      method,
+      method: verb,
       headers,
-      body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body:
+        options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+      redirect: "error",
     });
 
     const text = await res.text();
     if (!res.ok) {
-      // Never include the API key in error messages
+      const safeBody = text
+        .slice(0, 2000)
+        .replace(this.apiKey, "[REDACTED]")
+        .replace(/Bearer\s+[A-Za-z0-9._\-]+/gi, "Bearer [REDACTED]");
       throw new KitchenApiError(
-        `Kitchen API ${method} ${url.pathname} failed (${res.status})`,
+        `Kitchen API ${verb} ${url.pathname} failed (${res.status})`,
         res.status,
-        text.slice(0, 2000)
+        safeBody
       );
     }
 

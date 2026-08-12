@@ -4,6 +4,12 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { logInfo, logWarn } from "./log";
 import { KitchenProfile, mcpServerName } from "./profiles";
+import {
+  assertInsideDirectory,
+  redactSecrets,
+  sanitizeSlug,
+  secureUnlink,
+} from "./security";
 
 type McpServerEntry = {
   command?: string;
@@ -18,30 +24,30 @@ type McpJson = {
   [key: string]: unknown;
 };
 
-/** Marker so we only remove/update entries we own. */
+/** Marker so we only remove/update entries we own. Required for mutations. */
 export const KITCHEN_MANAGED = "x-kitchen-mcp-managed";
+export const KITCHEN_MANAGED_VALUE = "dimy-osman.kitchen-co-mcp";
 
 export function userMcpJsonPath(): string {
   return path.join(os.homedir(), ".cursor", "mcp.json");
 }
 
-/** Suggested OS env var name if the user prefers ${env:...} instead of envFile. */
 export function envVarNameForProfile(profile: KitchenProfile): string {
-  const slug = mcpServerName(profile)
-    .replace(/^kitchen-/, "")
-    .replace(/-/g, "_")
-    .toUpperCase();
-  return `KITCHEN_${slug || profile.id.slice(0, 8).toUpperCase()}_API_KEY`;
+  const slug = sanitizeSlug(profile.name, profile.id);
+  return `KITCHEN_${slug.replace(/-/g, "_").toUpperCase()}_API_KEY`;
 }
 
 export function profileEnvFilePath(
   globalStorageUri: vscode.Uri,
   profile: KitchenProfile
 ): string {
-  return path.join(
-    globalStorageUri.fsPath,
-    "env",
-    `${mcpServerName(profile)}.env`
+  const serverName = mcpServerName(profile);
+  const envDir = path.join(globalStorageUri.fsPath, "env");
+  fs.mkdirSync(envDir, { recursive: true });
+  return assertInsideDirectory(
+    path.join(envDir, `${serverName}.env`),
+    envDir,
+    "env file"
   );
 }
 
@@ -54,16 +60,30 @@ function readMcpJson(filePath: string): McpJson {
     return { mcpServers: {} };
   }
   const parsed = JSON.parse(raw) as McpJson;
-  if (!parsed.mcpServers || typeof parsed.mcpServers !== "object") {
+  if (
+    !parsed.mcpServers ||
+    typeof parsed.mcpServers !== "object" ||
+    Array.isArray(parsed.mcpServers)
+  ) {
     parsed.mcpServers = {};
   }
   return parsed;
 }
 
-function writeMcpJson(filePath: string, data: McpJson): void {
+function writeMcpJsonAtomic(filePath: string, data: McpJson): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
-  const tmp = `${filePath}.${process.pid}.tmp`;
+
+  // Backup existing file once per write (keep last good copy)
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.copyFileSync(filePath, `${filePath}.kitchen-mcp.bak`);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, "utf8");
   fs.renameSync(tmp, filePath);
 }
@@ -71,20 +91,29 @@ function writeMcpJson(filePath: string, data: McpJson): void {
 export function durableEntryExists(serverName: string): boolean {
   try {
     const cfg = readMcpJson(userMcpJsonPath());
-    return Boolean(cfg.mcpServers?.[serverName]);
+    const entry = cfg.mcpServers?.[serverName];
+    return Boolean(entry && isKitchenManaged(entry));
   } catch {
     return false;
   }
 }
 
+/**
+ * Materialize a short-lived env file for Cursor stdio spawn.
+ * Prefer wiping these on deactivate; SecretStorage/vault remain source of truth.
+ */
 export function writeProfileEnvFile(
   globalStorageUri: vscode.Uri,
   profile: KitchenProfile,
   apiKey: string
 ): string {
   const filePath = profileEnvFilePath(globalStorageUri, profile);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const body = `# Managed by Kitchen.co MCP — do not commit\nKITCHEN_API_KEY=${apiKey.trim()}\n`;
+  // Never log apiKey; validate no newline injection into env file
+  const cleaned = apiKey.trim().replace(/[\r\n\0]/g, "");
+  if (!cleaned) {
+    throw new Error("Refusing to write empty API key");
+  }
+  const body = `# Managed by Kitchen.co MCP (Unofficial) — do not commit or share\nKITCHEN_API_KEY=${cleaned}\n`;
   const tmp = `${filePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, body, { encoding: "utf8", mode: 0o600 });
   fs.renameSync(tmp, filePath);
@@ -100,34 +129,56 @@ export function deleteProfileEnvFile(
   globalStorageUri: vscode.Uri,
   serverNameOrProfile: KitchenProfile | string
 ): void {
-  const filePath =
-    typeof serverNameOrProfile === "string"
-      ? path.join(
-          globalStorageUri.fsPath,
-          "env",
-          `${serverNameOrProfile}.env`
-        )
-      : profileEnvFilePath(globalStorageUri, serverNameOrProfile);
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    const envDir = path.join(globalStorageUri.fsPath, "env");
+    const filePath =
+      typeof serverNameOrProfile === "string"
+        ? assertInsideDirectory(
+            path.join(envDir, `${serverNameOrProfile}.env`),
+            envDir,
+            "env file"
+          )
+        : profileEnvFilePath(globalStorageUri, serverNameOrProfile);
+    secureUnlink(filePath);
   } catch (err) {
     logWarn(
-      `Could not delete env file: ${
+      `Could not delete env file: ${redactSecrets(
         err instanceof Error ? err.message : String(err)
-      }`
+      )}`
     );
   }
 }
 
-function isKitchenManaged(entry: McpServerEntry, serverName: string): boolean {
-  return entry[KITCHEN_MANAGED] === true || serverName.startsWith("kitchen-");
+/** Securely wipe all materialized env files under globalStorage/env. */
+export function wipeAllEnvFiles(globalStorageUri: vscode.Uri): void {
+  const envDir = path.join(globalStorageUri.fsPath, "env");
+  if (!fs.existsSync(envDir)) return;
+  for (const name of fs.readdirSync(envDir)) {
+    if (!name.endsWith(".env")) continue;
+    try {
+      secureUnlink(
+        assertInsideDirectory(path.join(envDir, name), envDir, "env file")
+      );
+    } catch {
+      // ignore
+    }
+  }
+  logInfo("Wiped materialized API key env files from disk");
+}
+
+function isKitchenManaged(entry: McpServerEntry): boolean {
+  const marker = entry[KITCHEN_MANAGED];
+  return marker === KITCHEN_MANAGED_VALUE || marker === true;
+}
+
+function resolveMcpEntryScript(extensionPath: string): string {
+  const entryPath = path.join(extensionPath, "mcp", "dist", "index.js");
+  return assertInsideDirectory(entryPath, extensionPath, "MCP entry script");
 }
 
 /**
  * Upsert durable stdio MCP entry in ~/.cursor/mcp.json.
- * Secret stays out of mcp.json — loaded via envFile under extension globalStorage.
+ * Only mutates entries tagged with our managed marker.
  */
 export function upsertDurableMcpEntry(options: {
   extensionPath: string;
@@ -135,21 +186,25 @@ export function upsertDurableMcpEntry(options: {
   profile: KitchenProfile;
   apiKey: string;
   previousServerName?: string;
-}): { serverName: string; mcpJsonPath: string; envFile: string } {
+  writeEnvFile: boolean;
+}): { serverName: string; mcpJsonPath: string; envFile?: string } {
   const serverName = mcpServerName(options.profile);
   const mcpJsonPath = userMcpJsonPath();
-  const envFile = writeProfileEnvFile(
-    options.globalStorageUri,
-    options.profile,
-    options.apiKey
-  );
-  const entryPath = path.join(
+  const entryPath = resolveMcpEntryScript(options.extensionPath);
+  const nodeModules = assertInsideDirectory(
+    path.join(options.extensionPath, "node_modules"),
     options.extensionPath,
-    "mcp",
-    "dist",
-    "index.js"
+    "node_modules"
   );
-  const nodeModules = path.join(options.extensionPath, "node_modules");
+
+  let envFile: string | undefined;
+  if (options.writeEnvFile) {
+    envFile = writeProfileEnvFile(
+      options.globalStorageUri,
+      options.profile,
+      options.apiKey
+    );
+  }
 
   const cfg = readMcpJson(mcpJsonPath);
 
@@ -159,7 +214,7 @@ export function upsertDurableMcpEntry(options: {
     cfg.mcpServers?.[options.previousServerName]
   ) {
     const prev = cfg.mcpServers[options.previousServerName];
-    if (isKitchenManaged(prev, options.previousServerName)) {
+    if (isKitchenManaged(prev)) {
       delete cfg.mcpServers[options.previousServerName];
       deleteProfileEnvFile(
         options.globalStorageUri,
@@ -169,8 +224,15 @@ export function upsertDurableMcpEntry(options: {
     }
   }
 
+  const existing = cfg.mcpServers?.[serverName];
+  if (existing && !isKitchenManaged(existing)) {
+    throw new Error(
+      `Refusing to overwrite mcp.json entry "${serverName}" — not owned by this extension`
+    );
+  }
+
   cfg.mcpServers = cfg.mcpServers ?? {};
-  cfg.mcpServers[serverName] = {
+  const entry: McpServerEntry = {
     command: "node",
     args: [entryPath],
     env: {
@@ -178,13 +240,24 @@ export function upsertDurableMcpEntry(options: {
       KITCHEN_PROFILE_NAME: options.profile.name,
       NODE_PATH: nodeModules,
     },
-    envFile,
-    [KITCHEN_MANAGED]: true,
+    [KITCHEN_MANAGED]: KITCHEN_MANAGED_VALUE,
   };
+  if (envFile) {
+    entry.envFile = envFile;
+  } else {
+    // Document preferred secret injection without writing plaintext
+    entry.env = {
+      ...entry.env,
+      KITCHEN_API_KEY: `\${env:${envVarNameForProfile(options.profile)}}`,
+    };
+  }
 
-  writeMcpJson(mcpJsonPath, cfg);
+  cfg.mcpServers[serverName] = entry;
+  writeMcpJsonAtomic(mcpJsonPath, cfg);
   logInfo(
-    `Upserted durable MCP "${serverName}" → ${mcpJsonPath} (API key via envFile only)`
+    `Upserted durable MCP "${serverName}" (secrets via ${
+      envFile ? "local envFile" : "OS env interpolation"
+    })`
   );
 
   return { serverName, mcpJsonPath, envFile };
@@ -207,7 +280,7 @@ export function removeDurableMcpEntry(
     return false;
   }
 
-  if (!isKitchenManaged(entry, serverName)) {
+  if (!isKitchenManaged(entry)) {
     logWarn(
       `Refusing to remove mcp.json entry "${serverName}" — not Kitchen-managed`
     );
@@ -215,7 +288,7 @@ export function removeDurableMcpEntry(
   }
 
   delete cfg.mcpServers![serverName];
-  writeMcpJson(mcpJsonPath, cfg);
+  writeMcpJsonAtomic(mcpJsonPath, cfg);
   deleteProfileEnvFile(globalStorageUri, serverName);
   logInfo(`Removed durable MCP entry: ${serverName}`);
   return true;
