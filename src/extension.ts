@@ -3,6 +3,7 @@ import {
   ACK_STORAGE_KEY,
   DISCLAIMER_BODY,
   DISCLAIMER_TITLE,
+  SETUP_PROMPT_KEY,
   UNOFFICIAL_ONE_LINER,
 } from "./disclaimer";
 import {
@@ -48,7 +49,7 @@ export async function activate(
       listProfiles()
     ),
     vscode.commands.registerCommand("kitchenMcp.reregister", () =>
-      reregister({ showMessage: true })
+      reregister({ notify: "errors" })
     ),
     vscode.commands.registerCommand("kitchenMcp.testConnection", () =>
       testConnection()
@@ -76,21 +77,10 @@ export async function activate(
     .get<boolean>("autoRegister", true);
 
   if (auto && store.list().length > 0) {
-    await reregister({ showMessage: true, fromActivate: true });
+    // Silent on success — toast only if something fails
+    await reregister({ notify: "errors", fromActivate: true });
   } else if (store.list().length === 0) {
-    vscode.window
-      .showInformationMessage(
-        "Kitchen.co MCP (Unofficial): add your own workspace URL + API token to connect Cursor agents.",
-        "Add Profile",
-        "About"
-      )
-      .then((choice) => {
-        if (choice === "Add Profile") {
-          void vscode.commands.executeCommand("kitchenMcp.addProfile");
-        } else if (choice === "About") {
-          void vscode.commands.executeCommand("kitchenMcp.about");
-        }
-      });
+    await maybeShowOneTimeSetupPrompt();
   }
 }
 
@@ -149,6 +139,24 @@ async function ensureDisclaimerAcknowledged(): Promise<boolean> {
   return true;
 }
 
+async function maybeShowOneTimeSetupPrompt(): Promise<void> {
+  if (extensionContext.globalState.get<boolean>(SETUP_PROMPT_KEY)) {
+    return;
+  }
+  await extensionContext.globalState.update(SETUP_PROMPT_KEY, true);
+
+  const choice = await vscode.window.showInformationMessage(
+    "Kitchen.co MCP (Unofficial): add your Kitchen workspace URL + API token to finish setup.",
+    "Add Profile",
+    "About"
+  );
+  if (choice === "Add Profile") {
+    void vscode.commands.executeCommand("kitchenMcp.addProfile");
+  } else if (choice === "About") {
+    void vscode.commands.executeCommand("kitchenMcp.about");
+  }
+}
+
 async function showAbout(): Promise<void> {
   const version = extensionContext.extension.packageJSON.version as string;
   const text = [
@@ -173,10 +181,11 @@ async function addProfile(): Promise<void> {
   if (!result) return;
 
   const profile = await store.upsert(result.profile, result.apiKey);
-  await reregister({ showMessage: true });
+  await reregister({ notify: "errors" });
+  await extensionContext.globalState.update(SETUP_PROMPT_KEY, true);
   const name = mcpServerName(profile);
   vscode.window.showInformationMessage(
-    `Kitchen.co MCP (Unofficial): added "${profile.name}" as "${name}". Your token stays in OS keychain + local envFile.`
+    `Kitchen.co MCP: profile "${profile.name}" ready (${name}).`
   );
 }
 
@@ -190,10 +199,8 @@ async function editProfile(): Promise<void> {
 
   const updated = await store.upsert(result.profile, result.apiKey);
   const previousNames = new Map<string, string>([[updated.id, previousName]]);
-  await reregister({ showMessage: true, previousNames });
-  vscode.window.showInformationMessage(
-    `Kitchen.co MCP: updated profile "${updated.name}".`
-  );
+  await reregister({ notify: "errors", previousNames });
+  logInfo(`Updated profile "${updated.name}"`);
 }
 
 async function removeProfile(): Promise<void> {
@@ -210,9 +217,6 @@ async function removeProfile(): Promise<void> {
   await registrar.removeProfileRegistration(profile);
   await store.remove(profile.id);
   logInfo(`Removed profile "${profile.name}"`);
-  vscode.window.showInformationMessage(
-    `Kitchen.co MCP: removed profile "${profile.name}".`
-  );
 }
 
 async function listProfiles(): Promise<void> {
@@ -248,7 +252,8 @@ async function listProfiles(): Promise<void> {
 }
 
 async function reregister(options: {
-  showMessage: boolean;
+  /** errors = toast only on failure; always = also success (avoid on startup) */
+  notify: "never" | "errors" | "always";
   fromActivate?: boolean;
   previousNames?: Map<string, string>;
 }): Promise<void> {
@@ -270,32 +275,26 @@ async function reregister(options: {
 
   logInfo(summary);
 
-  if (!options.showMessage) return;
+  if (options.notify === "never") return;
 
-  if (result.errors.length) {
+  const hasIssue = result.errors.length > 0 || result.skipped > 0;
+  if (hasIssue) {
     vscode.window
-      .showWarningMessage(
-        `Kitchen.co MCP: ${summary}`,
-        "Show Log"
-      )
+      .showWarningMessage(`Kitchen.co MCP: ${summary}`, "Show Log")
       .then((c) => {
         if (c === "Show Log") getLog().show(true);
       });
-  } else if (result.ok === 0 && store.list().length === 0) {
-    vscode.window.showInformationMessage("Kitchen.co MCP: no profiles to register.");
-  } else {
-    const prefix = options.fromActivate ? "Startup sync" : "Re-register";
-    vscode.window
-      .showInformationMessage(
-        `Kitchen.co MCP: ${prefix} OK — ${result.durableOk} durable in mcp.json` +
-          (result.dynamicOk ? `, ${result.dynamicOk} dynamic` : "") +
-          ".",
-        "Show Log"
-      )
-      .then((c) => {
-        if (c === "Show Log") getLog().show(true);
-      });
+    return;
   }
+
+  if (options.notify === "always") {
+    vscode.window.showInformationMessage(
+      `Kitchen.co MCP: sync OK — ${result.durableOk} durable` +
+        (result.dynamicOk ? `, ${result.dynamicOk} dynamic` : "") +
+        "."
+    );
+  }
+  // notify === "errors" and success → stay quiet (details in Output log)
 }
 
 async function testConnection(): Promise<void> {

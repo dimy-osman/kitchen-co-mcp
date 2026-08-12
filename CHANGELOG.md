@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-08-12
+
+### Changed
+- No startup notification spam: success sync is silent; toasts only on errors
+- One-time setup prompt on first install only
+
 ## 0.2.1 — 2026-08-12
 
 ### Changed

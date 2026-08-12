@@ -28,3 +28,6 @@ export const DISCLAIMER_BODY = [
 ].join("\n");
 
 export const ACK_STORAGE_KEY = "kitchenMcp.disclaimerAcknowledged.v1";
+
+/** One-time “add your first profile” prompt after install — never again. */
+export const SETUP_PROMPT_KEY = "kitchenMcp.setupPromptShown.v1";
