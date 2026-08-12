@@ -1,0 +1,7 @@
+# Kitchen.co MCP — KTCH-MCP
+node_modules/
+out/
+mcp/dist/
+*.vsix
+.env
+.env.local

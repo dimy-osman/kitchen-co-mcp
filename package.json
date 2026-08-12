@@ -1,0 +1,96 @@
+{
+  "name": "kitchen-co-mcp",
+  "displayName": "Kitchen.co MCP",
+  "description": "Cursor/VS Code extension that connects agents to the Kitchen.co API via MCP. Multiple workspace profiles with secure API key storage.",
+  "version": "0.1.0",
+  "publisher": "dimy-osman",
+  "author": {
+    "name": "Dimy Osman"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/dimy-osman/kitchen-co-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dimy-osman/kitchen-co-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dimy-osman/kitchen-co-mcp/issues"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "AI"
+  ],
+  "keywords": [
+    "kitchen",
+    "kitchen.co",
+    "mcp",
+    "cursor",
+    "api",
+    "KTCH-MCP"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "kitchenMcp.addProfile",
+        "title": "Kitchen.co MCP: Add Profile"
+      },
+      {
+        "command": "kitchenMcp.editProfile",
+        "title": "Kitchen.co MCP: Edit Profile"
+      },
+      {
+        "command": "kitchenMcp.removeProfile",
+        "title": "Kitchen.co MCP: Remove Profile"
+      },
+      {
+        "command": "kitchenMcp.listProfiles",
+        "title": "Kitchen.co MCP: List Profiles"
+      },
+      {
+        "command": "kitchenMcp.reregister",
+        "title": "Kitchen.co MCP: Re-register MCP Servers"
+      },
+      {
+        "command": "kitchenMcp.testConnection",
+        "title": "Kitchen.co MCP: Test Connection"
+      }
+    ],
+    "configuration": {
+      "title": "Kitchen.co MCP",
+      "properties": {
+        "kitchenMcp.autoRegister": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically register Kitchen MCP servers with Cursor on startup."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm run compile:ext && npm run compile:mcp",
+    "compile:ext": "tsc -p ./",
+    "compile:mcp": "tsc -p ./mcp",
+    "watch": "tsc -watch -p ./",
+    "watch:mcp": "tsc -watch -p ./mcp",
+    "package": "npm run compile && vsce package",
+    "lint": "tsc -p ./ --noEmit && tsc -p ./mcp --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.3.2",
+    "typescript": "^5.8.2"
+  }
+}

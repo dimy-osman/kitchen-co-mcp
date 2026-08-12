@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+out/
+dist/
+mcp/dist/
+*.tsbuildinfo
+
+# Packaging
+*.vsix
+.vscode-test/
+
+# Secrets & local credentials — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+profiles.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Cursor local MCP overrides (may contain secrets)
+.cursor/mcp.json
+
+# npm
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
