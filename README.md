@@ -1,13 +1,28 @@
-# Kitchen.co MCP
+# Kitchen.co MCP (Unofficial)
 
-**Kitchen.co MCP** by [Dimy Osman](https://github.com/dimy-osman) — project code **KTCH-MCP**.
+**Unofficial** community extension by [Dimy Osman](https://github.com/dimy-osman) — project code **KTCH-MCP**.
 
-Cursor / VS Code extension that connects AI agents to the [Kitchen.co API](https://developer.kitchen.co/) via the [Model Context Protocol](https://modelcontextprotocol.io/).
+> **Not affiliated with Kitchen.co.** This project is **not** an official Kitchen.co product, plugin, or service. It is **not** endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates. “Kitchen” and “Kitchen.co” are marks of their respective owners; use here is for identification only and does **not** imply any partnership, license, or grant of rights.
+
+Cursor / VS Code extension that lets AI agents talk to a [Kitchen.co](https://kitchen.co/) workspace through the public [Kitchen API](https://developer.kitchen.co/) via the [Model Context Protocol](https://modelcontextprotocol.io/).
+
+You must use **your own** Kitchen workspace URL and API token. This extension does not provide Kitchen accounts, hosting, or support from Kitchen.co.
+
+## What it does
 
 - Multiple workspace profiles (URL + API token pairs)
 - API tokens in **OS keychain** (`SecretStorage`) plus a local **envFile** under extension globalStorage
 - **Durable** entries merged into `~/.cursor/mcp.json` (survives window reload) — keys never written plaintext into that file
 - Optional session registration via Cursor’s `vscode.cursor.mcp.registerServer` API
+
+## Disclaimer & legal
+
+- **Unofficial / third-party.** Built independently for personal and community use with Kitchen’s documented public API.
+- **No rights granted by Kitchen.co.** Installing or using this software does **not** give you any trademark, copyright, partnership, reseller, or other rights from Kitchen.co or related companies.
+- **No official support.** Do not contact Kitchen.co support about this extension. Use [GitHub Issues](https://github.com/dimy-osman/kitchen-co-mcp/issues) for this project only.
+- **Your credentials, your responsibility.** API tokens grant access to your Kitchen data. You are responsible for creating, storing, rotating, and revoking tokens, and for any actions agents perform with them.
+- **AS IS.** Provided under the [MIT License](./LICENSE) with **no warranties**. The author is not liable for data loss, misuse, security incidents, or business impact from use of this tool.
+- **API changes.** Kitchen may change or restrict their API at any time; this extension may break without notice.
 
 ## Security
 
@@ -23,18 +38,14 @@ Do **not** commit real API keys. Create tokens in Kitchen → Settings → Devel
 ## Install (VSIX)
 
 1. Build: `npm install && npm run package`
-2. Cursor: **Extensions → … → Install from VSIX…** → `kitchen-co-mcp-0.1.1.vsix`
-3. Command Palette → **Kitchen.co MCP: Add Profile**
+2. Cursor: **Extensions → … → Install from VSIX…** → `kitchen-co-mcp-0.1.2.vsix`
+3. Acknowledge the unofficial notice (first run), then **Kitchen.co MCP: Add Profile**
 4. Enter name, workspace URL/slug, and API token
 5. Confirm under Cursor Settings → MCP and via **List Profiles** (`durable mcp.json: yes`)
 
-## Reload behavior (fixed in 0.1.1)
-
-v0.1.0 unregistered MCP servers in `deactivate()`, so **Developer: Reload Window** removed Kitchen from MCP.  
-v0.1.1+ does **not** unregister on deactivate, syncs durable `mcp.json` on activate, retries the Cursor MCP API, and logs to **Kitchen.co MCP: Show Output Log**.
-
 ## Commands
 
+- **About / Disclaimer** — unofficial status and legal notice
 - **Add / Edit / Remove Profile**
 - **List Profiles** — key status, durable mcp.json yes/no, dynamic register yes/no
 - **Re-register MCP Servers** — sync durable + dynamic
@@ -77,7 +88,7 @@ Or use `envFile` pointing at a local file that defines `KITCHEN_API_KEY` (what t
 | `kitchen_list_files` / folders / invoices / clients / members / docs | Other resources |
 | `kitchen_request` | Low-level GET/POST/… under `/api` |
 
-API reference: https://developer.kitchen.co/
+API reference: https://developer.kitchen.co/ (Kitchen’s docs; not part of this project)
 
 ## Develop
 
@@ -91,4 +102,6 @@ Requirements: Node 20+, Cursor (recommended).
 
 ## License
 
-MIT © Dimy Osman
+MIT © Dimy Osman — see [LICENSE](./LICENSE).
+
+Kitchen.co and related marks remain the property of their respective owners.

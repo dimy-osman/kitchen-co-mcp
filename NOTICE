@@ -1,0 +1,19 @@
+NOTICE — Unofficial third-party software
+========================================
+
+Kitchen.co MCP (KTCH-MCP) is an unofficial community project by Dimy Osman.
+
+It is NOT an official Kitchen.co product and is NOT affiliated with, endorsed
+by, sponsored by, or supported by Kitchen.co, 2create.io, or their affiliates.
+
+“Kitchen” and “Kitchen.co” are trademarks or trade names of their respective
+owners. Their use in this project is solely to identify the public API that
+this software can connect to. No trademark license, partnership, or other
+rights are granted by Kitchen.co by virtue of using or distributing this
+software.
+
+You must supply your own Kitchen workspace credentials. This project does not
+sell, broker, or provide Kitchen accounts.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND. See LICENSE
+(MIT) for full terms.

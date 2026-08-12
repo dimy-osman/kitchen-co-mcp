@@ -1,8 +1,8 @@
 {
   "name": "kitchen-co-mcp",
-  "displayName": "Kitchen.co MCP",
-  "description": "Cursor/VS Code extension that connects agents to the Kitchen.co API via MCP. Multiple workspace profiles with secure API key storage.",
-  "version": "0.1.1",
+  "displayName": "Kitchen.co MCP (Unofficial)",
+  "description": "Unofficial community MCP bridge for the Kitchen.co API (by Dimy Osman). NOT affiliated with or endorsed by Kitchen.co. Use your own API token. AS IS — no warranty.",
+  "version": "0.1.2",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
@@ -29,7 +29,8 @@
     "mcp",
     "cursor",
     "api",
-    "KTCH-MCP"
+    "KTCH-MCP",
+    "unofficial"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -37,6 +38,10 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "kitchenMcp.about",
+        "title": "Kitchen.co MCP: About / Disclaimer"
+      },
       {
         "command": "kitchenMcp.addProfile",
         "title": "Kitchen.co MCP: Add Profile"
@@ -67,7 +72,7 @@
       }
     ],
     "configuration": {
-      "title": "Kitchen.co MCP",
+      "title": "Kitchen.co MCP (Unofficial)",
       "properties": {
         "kitchenMcp.autoRegister": {
           "type": "boolean",

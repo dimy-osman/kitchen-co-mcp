@@ -95,8 +95,11 @@ export async function promptForProfile(
   options?: { requireApiKey?: boolean }
 ): Promise<{ profile: Omit<KitchenProfile, "id"> & { id?: string }; apiKey?: string } | undefined> {
   const name = await vscode.window.showInputBox({
-    title: existing ? "Edit Kitchen profile" : "Add Kitchen profile",
-    prompt: "Profile name (shown in Cursor MCP list)",
+    title: existing
+      ? "Edit Kitchen profile (unofficial MCP)"
+      : "Add Kitchen profile (unofficial MCP)",
+    prompt:
+      "Profile name shown in Cursor MCP list. Unofficial extension — use your own Kitchen workspace.",
     value: existing?.name ?? "",
     placeHolder: "e.g. Acme Agency",
     ignoreFocusOut: true,
@@ -105,8 +108,10 @@ export async function promptForProfile(
   if (name === undefined) return undefined;
 
   const baseUrl = await vscode.window.showInputBox({
-    title: existing ? "Edit Kitchen profile" : "Add Kitchen profile",
-    prompt: "Workspace URL or slug (e.g. acme or https://acme.kitchen.co)",
+    title: existing
+      ? "Edit Kitchen profile (unofficial MCP)"
+      : "Add Kitchen profile (unofficial MCP)",
+    prompt: "Your Kitchen workspace URL or slug (e.g. acme or https://acme.kitchen.co)",
     value: existing?.baseUrl ?? "",
     placeHolder: "https://your-workspace.kitchen.co",
     ignoreFocusOut: true,
@@ -115,10 +120,12 @@ export async function promptForProfile(
   if (baseUrl === undefined) return undefined;
 
   const apiKey = await vscode.window.showInputBox({
-    title: existing ? "Edit Kitchen profile" : "Add Kitchen profile",
+    title: existing
+      ? "Edit Kitchen profile (unofficial MCP)"
+      : "Add Kitchen profile (unofficial MCP)",
     prompt: existing
-      ? "API token (leave blank to keep existing; stored in OS keychain)"
-      : "API token from Kitchen Settings → Developer → API Token",
+      ? "Your API token (leave blank to keep existing; stored in OS keychain — never shared with Kitchen.co as part of this extension)"
+      : "Your API token from Kitchen Settings → Developer → API Token (stored locally only)",
     password: true,
     ignoreFocusOut: true,
     placeHolder: "Bearer token value only (not the word Bearer)",

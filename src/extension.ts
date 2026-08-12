@@ -1,5 +1,11 @@
 import * as vscode from "vscode";
 import {
+  ACK_STORAGE_KEY,
+  DISCLAIMER_BODY,
+  DISCLAIMER_TITLE,
+  UNOFFICIAL_ONE_LINER,
+} from "./disclaimer";
+import {
   durableEntryExists,
   envVarNameForProfile,
   userMcpJsonPath,
@@ -16,16 +22,19 @@ import {
 
 let store: ProfileStore;
 let registrar: McpRegistrar;
+let extensionContext: vscode.ExtensionContext;
 
 export async function activate(
   context: vscode.ExtensionContext
 ): Promise<void> {
+  extensionContext = context;
   store = new ProfileStore(context);
   registrar = new McpRegistrar(context, store);
 
   context.subscriptions.push(getLog());
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("kitchenMcp.about", () => showAbout()),
     vscode.commands.registerCommand("kitchenMcp.addProfile", () => addProfile()),
     vscode.commands.registerCommand("kitchenMcp.editProfile", () =>
       editProfile()
@@ -47,26 +56,37 @@ export async function activate(
     })
   );
 
-  logInfo(`Kitchen.co MCP activate (${context.extension.packageJSON.version})`);
+  logInfo(
+    `Kitchen.co MCP (Unofficial) activate (${context.extension.packageJSON.version})`
+  );
+  logInfo(UNOFFICIAL_ONE_LINER);
   logInfo(`Profiles in globalState: ${store.list().length}`);
   logInfo(`User mcp.json: ${userMcpJsonPath()}`);
+
+  const acknowledged = await ensureDisclaimerAcknowledged();
+  if (!acknowledged) {
+    logInfo("Disclaimer not acknowledged — skipping auto-register.");
+    return;
+  }
 
   const auto = vscode.workspace
     .getConfiguration("kitchenMcp")
     .get<boolean>("autoRegister", true);
 
   if (auto && store.list().length > 0) {
-    // Always surface auto-register outcome (fixes silent failure on reload)
     await reregister({ showMessage: true, fromActivate: true });
   } else if (store.list().length === 0) {
     vscode.window
       .showInformationMessage(
-        "Kitchen.co MCP: add a workspace profile to connect Cursor agents.",
-        "Add Profile"
+        "Kitchen.co MCP (Unofficial): add your own workspace URL + API token to connect Cursor agents.",
+        "Add Profile",
+        "About"
       )
       .then((choice) => {
         if (choice === "Add Profile") {
           void vscode.commands.executeCommand("kitchenMcp.addProfile");
+        } else if (choice === "About") {
+          void vscode.commands.executeCommand("kitchenMcp.about");
         }
       });
   }
@@ -74,8 +94,6 @@ export async function activate(
 
 /**
  * P0 (#1): Do NOT unregister MCP servers on deactivate.
- * Window reload calls deactivate; unregistering here tore down Kitchen MCP
- * before durable re-register could help. Cleanup happens on Remove Profile only.
  */
 export function deactivate(): void {
   logInfo(
@@ -83,7 +101,57 @@ export function deactivate(): void {
   );
 }
 
+async function ensureDisclaimerAcknowledged(): Promise<boolean> {
+  if (extensionContext.globalState.get<boolean>(ACK_STORAGE_KEY)) {
+    return true;
+  }
+
+  const choice = await vscode.window.showInformationMessage(
+    DISCLAIMER_TITLE,
+    { modal: true, detail: DISCLAIMER_BODY },
+    "I Understand — Continue",
+    "Open About"
+  );
+
+  if (choice === "Open About") {
+    await showAbout();
+    const again = await vscode.window.showInformationMessage(
+      "Continue with this unofficial Kitchen.co MCP extension?",
+      { modal: true },
+      "I Understand — Continue"
+    );
+    if (again !== "I Understand — Continue") {
+      return false;
+    }
+  } else if (choice !== "I Understand — Continue") {
+    return false;
+  }
+
+  await extensionContext.globalState.update(ACK_STORAGE_KEY, true);
+  logInfo("User acknowledged unofficial / legal disclaimer");
+  return true;
+}
+
+async function showAbout(): Promise<void> {
+  const version = extensionContext.extension.packageJSON.version as string;
+  const text = [
+    DISCLAIMER_TITLE,
+    `Version ${version} · KTCH-MCP · Dimy Osman`,
+    "",
+    DISCLAIMER_BODY,
+  ].join("\n");
+
+  logInfo("About / Disclaimer opened");
+  getLog().appendLine("----- About / Disclaimer -----");
+  getLog().appendLine(text);
+  getLog().show(true);
+
+  await vscode.window.showInformationMessage(text, { modal: true }, "OK");
+}
+
 async function addProfile(): Promise<void> {
+  if (!(await ensureDisclaimerAcknowledged())) return;
+
   const result = await promptForProfile(undefined, { requireApiKey: true });
   if (!result) return;
 
@@ -91,7 +159,7 @@ async function addProfile(): Promise<void> {
   await reregister({ showMessage: true });
   const name = mcpServerName(profile);
   vscode.window.showInformationMessage(
-    `Kitchen.co MCP: added "${profile.name}" as "${name}". Key in OS keychain + envFile; durable entry in ${userMcpJsonPath()}.`
+    `Kitchen.co MCP (Unofficial): added "${profile.name}" as "${name}". Your token stays in OS keychain + local envFile.`
   );
 }
 
@@ -156,7 +224,7 @@ async function listProfiles(): Promise<void> {
     })
   );
 
-  const text = `Kitchen.co MCP profiles (${profiles.length})\nmcp.json: ${userMcpJsonPath()}\n\n${lines.join("\n\n")}`;
+  const text = `Kitchen.co MCP (Unofficial) profiles (${profiles.length})\n${UNOFFICIAL_ONE_LINER}\nmcp.json: ${userMcpJsonPath()}\n\n${lines.join("\n\n")}`;
   logInfo(text.replace(/\n/g, " | "));
   getLog().show(true);
   vscode.window.showInformationMessage(text, { modal: true });

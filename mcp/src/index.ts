@@ -20,8 +20,8 @@ async function main() {
   const tools = buildTools(client);
 
   const server = new McpServer({
-    name: `kitchen-co-mcp:${profile}`,
-    version: "0.1.0",
+    name: `kitchen-co-mcp-unofficial:${profile}`,
+    version: "0.1.2",
   });
 
   // MCP SDK + Zod generics can exceed TS instantiation depth on large tool sets
