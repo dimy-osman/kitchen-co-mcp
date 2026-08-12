@@ -2,7 +2,7 @@
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP",
   "description": "Cursor/VS Code extension that connects agents to the Kitchen.co API via MCP. Multiple workspace profiles with secure API key storage.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
@@ -60,6 +60,10 @@
       {
         "command": "kitchenMcp.testConnection",
         "title": "Kitchen.co MCP: Test Connection"
+      },
+      {
+        "command": "kitchenMcp.showLog",
+        "title": "Kitchen.co MCP: Show Output Log"
       }
     ],
     "configuration": {
@@ -68,7 +72,12 @@
         "kitchenMcp.autoRegister": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically register Kitchen MCP servers with Cursor on startup."
+          "description": "Automatically sync Kitchen MCP servers on startup (durable mcp.json + Cursor registerServer)."
+        },
+        "kitchenMcp.persistToUserMcpJson": {
+          "type": "boolean",
+          "default": true,
+          "description": "Write/merge Kitchen servers into ~/.cursor/mcp.json so they survive window reload. API keys stay in SecretStorage + a local envFile (never plaintext in mcp.json)."
         }
       }
     }

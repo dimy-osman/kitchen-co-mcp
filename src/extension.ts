@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
+import {
+  durableEntryExists,
+  envVarNameForProfile,
+  userMcpJsonPath,
+} from "./durable-mcp";
+import { getLog, logError, logInfo } from "./log";
 import { McpRegistrar } from "./mcp-registrar";
 import {
+  KitchenProfile,
   ProfileStore,
   mcpServerName,
   normalizeBaseUrlInput,
@@ -10,25 +17,47 @@ import {
 let store: ProfileStore;
 let registrar: McpRegistrar;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(
+  context: vscode.ExtensionContext
+): Promise<void> {
   store = new ProfileStore(context);
   registrar = new McpRegistrar(context, store);
 
+  context.subscriptions.push(getLog());
+
   context.subscriptions.push(
     vscode.commands.registerCommand("kitchenMcp.addProfile", () => addProfile()),
-    vscode.commands.registerCommand("kitchenMcp.editProfile", () => editProfile()),
-    vscode.commands.registerCommand("kitchenMcp.removeProfile", () => removeProfile()),
-    vscode.commands.registerCommand("kitchenMcp.listProfiles", () => listProfiles()),
-    vscode.commands.registerCommand("kitchenMcp.reregister", () => reregister(true)),
-    vscode.commands.registerCommand("kitchenMcp.testConnection", () => testConnection())
+    vscode.commands.registerCommand("kitchenMcp.editProfile", () =>
+      editProfile()
+    ),
+    vscode.commands.registerCommand("kitchenMcp.removeProfile", () =>
+      removeProfile()
+    ),
+    vscode.commands.registerCommand("kitchenMcp.listProfiles", () =>
+      listProfiles()
+    ),
+    vscode.commands.registerCommand("kitchenMcp.reregister", () =>
+      reregister({ showMessage: true })
+    ),
+    vscode.commands.registerCommand("kitchenMcp.testConnection", () =>
+      testConnection()
+    ),
+    vscode.commands.registerCommand("kitchenMcp.showLog", () => {
+      getLog().show(true);
+    })
   );
+
+  logInfo(`Kitchen.co MCP activate (${context.extension.packageJSON.version})`);
+  logInfo(`Profiles in globalState: ${store.list().length}`);
+  logInfo(`User mcp.json: ${userMcpJsonPath()}`);
 
   const auto = vscode.workspace
     .getConfiguration("kitchenMcp")
     .get<boolean>("autoRegister", true);
 
   if (auto && store.list().length > 0) {
-    await reregister(false);
+    // Always surface auto-register outcome (fixes silent failure on reload)
+    await reregister({ showMessage: true, fromActivate: true });
   } else if (store.list().length === 0) {
     vscode.window
       .showInformationMessage(
@@ -43,8 +72,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 }
 
+/**
+ * P0 (#1): Do NOT unregister MCP servers on deactivate.
+ * Window reload calls deactivate; unregistering here tore down Kitchen MCP
+ * before durable re-register could help. Cleanup happens on Remove Profile only.
+ */
 export function deactivate(): void {
-  void registrar?.unregisterAll();
+  logInfo(
+    "deactivate: leaving MCP registrations intact (durable mcp.json + no unregister)"
+  );
 }
 
 async function addProfile(): Promise<void> {
@@ -52,9 +88,10 @@ async function addProfile(): Promise<void> {
   if (!result) return;
 
   const profile = await store.upsert(result.profile, result.apiKey);
-  await reregister(true);
+  await reregister({ showMessage: true });
+  const name = mcpServerName(profile);
   vscode.window.showInformationMessage(
-    `Kitchen.co MCP: added profile "${profile.name}" as MCP server "${mcpServerName(profile)}". API key stored in OS keychain.`
+    `Kitchen.co MCP: added "${profile.name}" as "${name}". Key in OS keychain + envFile; durable entry in ${userMcpJsonPath()}.`
   );
 }
 
@@ -62,11 +99,13 @@ async function editProfile(): Promise<void> {
   const profile = await pickProfile("Edit profile");
   if (!profile) return;
 
+  const previousName = mcpServerName(profile);
   const result = await promptForProfile(profile);
   if (!result) return;
 
   const updated = await store.upsert(result.profile, result.apiKey);
-  await reregister(true);
+  const previousNames = new Map<string, string>([[updated.id, previousName]]);
+  await reregister({ showMessage: true, previousNames });
   vscode.window.showInformationMessage(
     `Kitchen.co MCP: updated profile "${updated.name}".`
   );
@@ -77,14 +116,15 @@ async function removeProfile(): Promise<void> {
   if (!profile) return;
 
   const confirm = await vscode.window.showWarningMessage(
-    `Remove Kitchen profile "${profile.name}"? The API key will be deleted from SecretStorage.`,
+    `Remove Kitchen profile "${profile.name}"? API key, envFile, and durable mcp.json entry will be deleted.`,
     { modal: true },
     "Remove"
   );
   if (confirm !== "Remove") return;
 
+  await registrar.removeProfileRegistration(profile);
   await store.remove(profile.id);
-  await reregister(true);
+  logInfo(`Removed profile "${profile.name}"`);
   vscode.window.showInformationMessage(
     `Kitchen.co MCP: removed profile "${profile.name}".`
   );
@@ -93,39 +133,83 @@ async function removeProfile(): Promise<void> {
 async function listProfiles(): Promise<void> {
   const profiles = store.list();
   if (profiles.length === 0) {
-    vscode.window.showInformationMessage("Kitchen.co MCP: no profiles configured.");
+    vscode.window.showInformationMessage(
+      "Kitchen.co MCP: no profiles configured."
+    );
     return;
   }
 
   const lines = await Promise.all(
     profiles.map(async (p) => {
       const hasKey = Boolean(await store.getApiKey(p.id));
-      return `• ${p.name} → ${p.baseUrl} (MCP: ${mcpServerName(p)}, key: ${
-        hasKey ? "stored securely" : "MISSING"
-      })`;
+      const name = mcpServerName(p);
+      const durable = durableEntryExists(name);
+      const dynamic = registrar.isDynamicallyRegistered(name);
+      return (
+        `• ${p.name} → ${p.baseUrl}\n` +
+        `  MCP: ${name}\n` +
+        `  key: ${hasKey ? "SecretStorage OK" : "MISSING"}\n` +
+        `  durable mcp.json: ${durable ? "yes" : "no"}\n` +
+        `  dynamic registerServer (this session): ${dynamic ? "yes" : "no"}\n` +
+        `  optional OS env name: ${envVarNameForProfile(p)}`
+      );
     })
   );
 
-  vscode.window.showInformationMessage(
-    `Kitchen.co MCP profiles (${profiles.length}):\n${lines.join("\n")}`,
-    { modal: true }
-  );
+  const text = `Kitchen.co MCP profiles (${profiles.length})\nmcp.json: ${userMcpJsonPath()}\n\n${lines.join("\n\n")}`;
+  logInfo(text.replace(/\n/g, " | "));
+  getLog().show(true);
+  vscode.window.showInformationMessage(text, { modal: true });
 }
 
-async function reregister(showMessage: boolean): Promise<void> {
-  const result = await registrar.registerAll();
-  if (!showMessage) return;
+async function reregister(options: {
+  showMessage: boolean;
+  fromActivate?: boolean;
+  previousNames?: Map<string, string>;
+}): Promise<void> {
+  logInfo(
+    options.fromActivate
+      ? "Auto-register on activate…"
+      : "Re-register requested…"
+  );
+
+  const result = await registrar.registerAll({
+    previousNames: options.previousNames,
+  });
+
+  const summary =
+    `registered profiles=${result.ok}, durable=${result.durableOk}, ` +
+    `dynamic=${result.dynamicOk}, skipped=${result.skipped}, ` +
+    `apiReady=${result.apiReady}` +
+    (result.errors.length ? `, errors: ${result.errors.join("; ")}` : "");
+
+  logInfo(summary);
+
+  if (!options.showMessage) return;
 
   if (result.errors.length) {
-    vscode.window.showWarningMessage(
-      `Kitchen.co MCP: registered ${result.ok}, skipped ${result.skipped}. ${result.errors.join(
-        " "
-      )}`
-    );
+    vscode.window
+      .showWarningMessage(
+        `Kitchen.co MCP: ${summary}`,
+        "Show Log"
+      )
+      .then((c) => {
+        if (c === "Show Log") getLog().show(true);
+      });
+  } else if (result.ok === 0 && store.list().length === 0) {
+    vscode.window.showInformationMessage("Kitchen.co MCP: no profiles to register.");
   } else {
-    vscode.window.showInformationMessage(
-      `Kitchen.co MCP: registered ${result.ok} server(s) with Cursor.`
-    );
+    const prefix = options.fromActivate ? "Startup sync" : "Re-register";
+    vscode.window
+      .showInformationMessage(
+        `Kitchen.co MCP: ${prefix} OK — ${result.durableOk} durable in mcp.json` +
+          (result.dynamicOk ? `, ${result.dynamicOk} dynamic` : "") +
+          ".",
+        "Show Log"
+      )
+      .then((c) => {
+        if (c === "Show Log") getLog().show(true);
+      });
   }
 }
 
@@ -149,11 +233,13 @@ async function testConnection(): Promise<void> {
     async () => {
       try {
         await probeKitchenApi(profile.baseUrl, apiKey);
+        logInfo(`Connection OK for ${profile.name}`);
         vscode.window.showInformationMessage(
           `Kitchen.co MCP: connection OK for "${profile.name}" (${profile.baseUrl}).`
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        logError(`Connection failed for ${profile.name}: ${message}`);
         vscode.window.showErrorMessage(
           `Kitchen.co MCP: connection failed for "${profile.name}": ${message}`
         );
@@ -187,7 +273,7 @@ async function probeKitchenApi(baseUrl: string, apiKey: string): Promise<void> {
 
 async function pickProfile(
   placeHolder: string
-): Promise<import("./profiles").KitchenProfile | undefined> {
+): Promise<KitchenProfile | undefined> {
   const profiles = store.list();
   if (profiles.length === 0) {
     vscode.window.showInformationMessage(
@@ -200,7 +286,9 @@ async function pickProfile(
     profiles.map((p) => ({
       label: p.name,
       description: p.baseUrl,
-      detail: `MCP server: ${mcpServerName(p)}`,
+      detail: `MCP: ${mcpServerName(p)} · durable: ${
+        durableEntryExists(mcpServerName(p)) ? "yes" : "no"
+      }`,
       profile: p,
     })),
     { placeHolder, ignoreFocusOut: true }

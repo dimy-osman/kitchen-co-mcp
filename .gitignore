@@ -14,6 +14,7 @@ mcp/dist/
 # Secrets & local credentials — NEVER commit
 .env
 .env.*
+*.env
 !.env.example
 *.pem
 *.key
