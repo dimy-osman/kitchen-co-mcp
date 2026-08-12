@@ -1,8 +1,8 @@
 {
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
-  "description": "Unofficial community MCP bridge for the Kitchen.co API (by Dimy Osman). Not affiliated with or endorsed by Kitchen.co. Use your own API token.",
-  "version": "0.2.3",
+  "description": "Unofficial community extension: connect Cursor/VS Code agents to your Kitchen.co workspace via MCP. Not affiliated with or endorsed by Kitchen.co. Uses your own API token.",
+  "version": "0.2.4",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"

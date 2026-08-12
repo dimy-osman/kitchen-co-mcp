@@ -2,79 +2,93 @@
 
 **Unofficial** community extension by [Dimy Osman](https://github.com/dimy-osman).
 
-> **Not affiliated with Kitchen.co.** This project is **not** an official Kitchen.co product, plugin, or service. It is **not** endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates. “Kitchen” and “Kitchen.co” are marks of their respective owners; use here is for identification only and does **not** imply any partnership, license, or grant of rights.
+> **Not affiliated with Kitchen.co.** This is **not** an official Kitchen.co product. It is **not** endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates. “Kitchen” / “Kitchen.co” identify the third-party API only — no partnership or rights are implied.
 
-Cursor / VS Code extension that lets AI agents talk to a [Kitchen.co](https://kitchen.co/) workspace through the public [Kitchen API](https://developer.kitchen.co/) via the [Model Context Protocol](https://modelcontextprotocol.io/).
+Connect [Cursor](https://cursor.com/) / VS Code AI agents to **your** [Kitchen.co](https://kitchen.co/) workspace through the public [Kitchen API](https://developer.kitchen.co/) and [MCP](https://modelcontextprotocol.io/).
 
-You must use **your own** Kitchen workspace URL and API token. This extension does not provide Kitchen accounts, hosting, or support from Kitchen.co.
+You supply your own workspace URL and API token. This extension does not provide Kitchen accounts or Kitchen.co support.
 
-## What it does
+## Install
 
-- Multiple workspace profiles (URL + API token pairs)
-- Tokens in **OS keychain** (SecretStorage) + **AES-256-GCM encrypted vault**
-- Durable `~/.cursor/mcp.json` entries **without plaintext keys**
-- Optional short-lived env files for Cursor spawn (wiped on deactivate by default)
-- SSRF protections, path containment, secret redaction — see [SECURITY.md](./SECURITY.md)
+### Recommended — Extensions marketplace
 
-## Disclaimer & legal
+1. Open **Extensions** in Cursor (or another Open VSX–compatible editor).
+2. Search for **`Kitchen.co MCP (Unofficial)`** or **`dimy-osman.kitchen-co-mcp`**.
+3. Click **Install**.
 
-- **Unofficial / third-party.** Built independently for personal and community use with Kitchen’s documented public API.
-- **No rights granted by Kitchen.co.** Installing or using this software does **not** give you any trademark, copyright, partnership, reseller, or other rights from Kitchen.co or related companies.
-- **No official support.** Do not contact Kitchen.co support about this extension. Use [GitHub Issues](https://github.com/dimy-osman/kitchen-co-mcp/issues) for this project only.
-- **Your credentials, your responsibility.** API tokens grant access to your Kitchen data. You are responsible for creating, storing, rotating, and revoking tokens, and for any actions agents perform with them.
-- **AS IS.** Provided under the [MIT License](./LICENSE) with **no warranties**. The author is not liable for data loss, misuse, security incidents, or business impact from use of this tool.
-- **API changes.** Kitchen may change or restrict their API at any time; this extension may break without notice.
+Listings:
 
-See also [NOTICE](./NOTICE).
+- [Open VSX](https://open-vsx.org/extension/dimy-osman/kitchen-co-mcp)
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=dimy-osman.kitchen-co-mcp)
 
-## Install (VSIX)
+### After install
 
-1. `npm install && npm run package`
-2. Cursor: **Extensions → … → Install from VSIX…** → `kitchen-co-mcp-0.2.0.vsix`
-3. Acknowledge the unofficial notice (first run), then **Add Profile**
-4. Confirm **List Profiles** shows `durable mcp.json: yes`
+1. Acknowledge the one-time unofficial notice (first run only).
+2. Command Palette → **Kitchen.co MCP: Add Profile**.
+3. Enter a profile name, your workspace URL (or slug), and API token from Kitchen → **Settings → Developer → API Token**.
+4. Optional: **List Profiles** to confirm the profile is ready (`durable mcp.json: yes`).
 
-### Marketplace
+Tokens stay on your machine (OS keychain + encrypted vault). They are never written into `mcp.json` as plaintext.
 
-Publish with your VSCE/Open VSX publisher account (`vsce publish` / `ovsx publish`). Publisher id: `dimy-osman`. This repo does not store marketplace login tokens.
+### Alternative — Install from VSIX
+
+If you prefer a local package: download a release VSIX from GitHub, or build one (see [Development](#development)), then **Extensions → ⋯ → Install from VSIX…**.
+
+## What you can do
+
+Once a profile is connected, agents can use Kitchen MCP tools to:
+
+- Read conversations, messages, files, folders, boards, invoices, clients, members, docs, milestones
+- Create / update tasks and post conversation messages
+- Call other same-origin Kitchen API paths via `kitchen_request`
+
+See [SECURITY.md](./SECURITY.md) for how credentials are stored and what protections apply.
 
 ## Commands
 
-- **About / Disclaimer**
-- **Add / Edit / Remove Profile**
-- **List Profiles**
-- **Re-register MCP Servers**
-- **Test Connection**
-- **Show Output Log**
+| Command | Purpose |
+|---------|---------|
+| **About / Disclaimer** | Unofficial status and legal notice |
+| **Add / Edit / Remove Profile** | Manage workspace URL + API token pairs |
+| **List Profiles** | Status (key stored, durable MCP, etc.) |
+| **Re-register MCP Servers** | Re-sync if tools disappear |
+| **Test Connection** | Quick API check |
+| **Show Output Log** | Diagnostics (success is silent on startup) |
 
 ## Settings
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `kitchenMcp.autoRegister` | `true` | Sync on startup |
-| `kitchenMcp.persistToUserMcpJson` | `true` | Durable mcp.json merge |
+| `kitchenMcp.autoRegister` | `true` | Sync MCP on startup |
+| `kitchenMcp.persistToUserMcpJson` | `true` | Keep durable entries in `~/.cursor/mcp.json` |
 | `kitchenMcp.writePlaintextEnvFile` | `true` | Short-lived env files for Cursor spawn |
-| `kitchenMcp.wipeEnvFilesOnDeactivate` | `true` | Wipe those env files on deactivate |
+| `kitchenMcp.wipeEnvFilesOnDeactivate` | `true` | Wipe those env files when the extension stops |
 
-## MCP tools (selected)
+Startup success is silent; you only get a toast if something fails. Setup help appears once on first install.
 
-| Tool | Purpose |
-|------|---------|
-| `kitchen_whoami` | Auth probe (no key in response) |
-| `kitchen_list_*` / `kitchen_get_*` | Read resources |
-| `kitchen_create_task` / `kitchen_update_task` | Task writes |
-| `kitchen_create_message` | Post conversation messages |
-| `kitchen_request` | Low-level same-origin `/api` calls |
+## Disclaimer & legal
 
-## Develop
+- **Unofficial / third-party** — independent use of Kitchen’s public API.
+- **No rights from Kitchen.co** — no trademark license, partnership, or official support.
+- **Support** — use [GitHub Issues](https://github.com/dimy-osman/kitchen-co-mcp/issues) only; do **not** contact Kitchen.co about this extension.
+- **Your credentials** — you are responsible for tokens and for actions agents take with them.
+- **AS IS** — [MIT License](./LICENSE); no warranties. Kitchen may change their API at any time.
+
+See [NOTICE](./NOTICE).
+
+## Development
+
+For contributors building from source:
 
 ```bash
 npm install
 npm run compile
 npm run lint
 npm run audit
-npm run package
+npm run package   # produces kitchen-co-mcp-*.vsix
 ```
+
+Publishing notes for maintainers: [docs/PUBLISH.md](./docs/PUBLISH.md).
 
 ## License
 

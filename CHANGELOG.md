@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4 — 2026-08-12
+
+### Changed
+- README: marketplace install is the primary path; build-from-source under Development
+- Clearer end-user setup and marketplace listing description
+
 ## 0.2.3 — 2026-08-12
 
 ### Changed
