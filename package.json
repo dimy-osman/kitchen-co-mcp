@@ -1,8 +1,8 @@
 {
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
-  "description": "Unofficial community extension: connect Cursor/VS Code agents to your Kitchen.co workspace via MCP. Not affiliated with or endorsed by Kitchen.co. Uses your own API token.",
-  "version": "0.2.4",
+  "description": "Unofficial Kitchen.co MCP: public Kitchen API for agents (tasks, boards, folders, invoices, docs, embeds, webhooks, memberships) plus a capabilities catalog.",
+  "version": "0.5.0",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
@@ -101,7 +101,7 @@
         "kitchenMcp.writePlaintextEnvFile": {
           "type": "boolean",
           "default": true,
-          "description": "Materialize short-lived 0600 env files under globalStorage so Cursor can spawn durable MCP servers. Disable to use OS env ${env:VAR} only (more secure, more setup)."
+          "description": "Materialize short-lived 0600 env files under globalStorage so Cursor can spawn durable MCP servers. Disable to use OS environment variables only (more secure, more setup)."
         },
         "kitchenMcp.wipeEnvFilesOnDeactivate": {
           "type": "boolean",
@@ -118,7 +118,7 @@
     "compile:mcp": "tsc -p ./mcp",
     "watch": "tsc -watch -p ./",
     "watch:mcp": "tsc -watch -p ./mcp",
-    "package": "npm run compile && vsce package",
+    "package": "npm run compile && node -e \"const {execSync}=require('child_process');const {mkdirSync}=require('fs');const v=require('./package.json').version;mkdirSync('vsix',{recursive:true});execSync('npx vsce package --out vsix/kitchen-co-mcp-'+v+'.vsix',{stdio:'inherit'})\"",
     "lint": "tsc -p ./ --noEmit && tsc -p ./mcp --noEmit",
     "audit": "npm audit --omit=dev"
   },

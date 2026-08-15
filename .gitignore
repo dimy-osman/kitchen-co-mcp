@@ -7,8 +7,10 @@ dist/
 mcp/dist/
 *.tsbuildinfo
 
-# Packaging
+# Packaging (local VSIX builds live in vsix/)
 *.vsix
+vsix/*
+!vsix/.gitkeep
 .vscode-test/
 
 # Secrets & local credentials — NEVER commit

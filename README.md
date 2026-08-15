@@ -4,9 +4,12 @@
 
 > **Not affiliated with Kitchen.co.** This is **not** an official Kitchen.co product. It is **not** endorsed, sponsored, or approved by Kitchen.co, 2create.io, or their affiliates. “Kitchen” / “Kitchen.co” identify the third-party API only — no partnership or rights are implied.
 
-Connect [Cursor](https://cursor.com/) / VS Code AI agents to **your** [Kitchen.co](https://kitchen.co/) workspace through the public [Kitchen API](https://developer.kitchen.co/) and [MCP](https://modelcontextprotocol.io/).
+Connects IDE to your [Kitchen.co](https://kitchen.co/) workspace so the agent can read and update that work from the editor.
 
-You supply your own workspace URL and API token. This extension does not provide Kitchen accounts or Kitchen.co support.
+Uses the public [Kitchen API](https://developer.kitchen.co/) and [MCP](https://modelcontextprotocol.io/). You supply your own workspace URL and API token. This extension does not provide Kitchen accounts or Kitchen.co support.
+
+[![Get Kitchen.co](https://img.shields.io/badge/Get-Kitchen.co-0F766E)](https://kitchen.co/)
+[![Sponsor](https://img.shields.io/badge/Sponsor-Kitchen.co%20MCP-FFD140?logo=paypal&logoColor=003087)](https://www.paypal.com/ncp/payment/XHEVPCDA66ABE)
 
 ## Install
 
@@ -36,11 +39,25 @@ If you prefer a local package: download a release VSIX from GitHub, or build one
 
 ## What you can do
 
-Once a profile is connected, agents can use Kitchen MCP tools to:
+Once a profile is connected, agents can use the public Kitchen API for that workspace. Call `kitchen_capabilities` first for the catalog (resources, permissions, clone, icons). Prefer named tools. Use `kitchen_request` for any other same-origin `/api` path.
 
-- Read conversations, messages, files, folders, boards, invoices, clients, members, docs, milestones
-- Create / update tasks and post conversation messages
-- Call other same-origin Kitchen API paths via `kitchen_request`
+Named coverage follows the public [Kitchen API](https://developer.kitchen.co/) (Bearer `/api` only):
+
+- **Folders, boards, conversations, links, docs, embeds, milestones, invoices** - list, get, create, update, delete, archive, restore, move, memberships
+- **Lists, labels, custom fields** - full board-scoped CRUD
+- **Tasks** - create/update/delete/move/toggle complete, plus subtask lists, subtasks, notes, comments, labels, members, custom-field values, attachments
+- **Messages and conversation notes** - list, get, create, update, delete
+- **Templates** - list, get, create, update, delete. Clone with `kitchen_create_folder` (`template`)
+- **Files** - list, get, create upload, complete, delete. PUT bytes to the returned `upload_url` yourself (off-origin)
+- **Clients and companies** - list, get, create, update, delete
+- **Recurring invoices and webhooks** - list, get, create, update, delete
+- **Members** - list, get
+- **Theme** - `kitchen_get_theme_configuration`
+- **Raw API** - `kitchen_request` for any other public `/api` path. Query arrays serialize as `key[]=value`
+
+Not on the public API (so not in MCP): client billing-profile CRUD, company user attach, invoice finalize/send, quotes, proposals. Do not scrape cookies. Deprecated Cards / legacy Attachments are skipped on purpose.
+
+Permissions: `visibility` is `private`, `internal`, or `shared`. Internal can take a default team `role`. Shared includes clients.
 
 See [SECURITY.md](./SECURITY.md) for how credentials are stored and what protections apply.
 
@@ -85,7 +102,7 @@ npm install
 npm run compile
 npm run lint
 npm run audit
-npm run package   # produces kitchen-co-mcp-*.vsix
+npm run package   # writes vsix/kitchen-co-mcp-*.vsix
 ```
 
 Publishing notes for maintainers: [docs/PUBLISH.md](./docs/PUBLISH.md).

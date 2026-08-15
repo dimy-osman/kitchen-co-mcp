@@ -8,7 +8,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createClientFromEnv } from "./kitchen-client";
-import { buildTools } from "./tools";
+import { buildTools, SERVER_INSTRUCTIONS } from "./tools";
 
 async function main() {
   const profile =
@@ -19,10 +19,15 @@ async function main() {
   const client = createClientFromEnv();
   const tools = buildTools(client);
 
-  const server = new McpServer({
-    name: `kitchen-co-mcp-unofficial:${profile}`,
-    version: "0.2.0",
-  });
+  const server = new McpServer(
+    {
+      name: `kitchen-co-mcp-unofficial:${profile}`,
+      version: "0.5.0",
+    },
+    {
+      instructions: SERVER_INSTRUCTIONS,
+    }
+  );
 
   // MCP SDK + Zod generics can exceed TS instantiation depth on large tool sets
   const register = server.registerTool.bind(server) as (

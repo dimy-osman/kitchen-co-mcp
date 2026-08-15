@@ -9,6 +9,58 @@ export type KitchenClientOptions = {
   apiKey: string;
 };
 
+export type QueryPrimitive = string | number | boolean;
+export type QueryValue = QueryPrimitive | QueryPrimitive[] | undefined | null;
+export type QueryRecord = Record<string, QueryValue>;
+
+const QUERY_KEY_RE = /^[A-Za-z0-9_.-]+$/;
+
+function isEmptyQueryValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+function isInternalApiPath(pathname: string): boolean {
+  const p = pathname.replace(/\/+$/, "") || "/";
+  return p === "/api/internal" || p.startsWith("/api/internal/");
+}
+
+/**
+ * Laravel-style query encoding. Arrays become key[]=a&key[]=b.
+ * Kitchen rejects expand as a scalar ("The expand field must be an array").
+ */
+export function applyQueryParams(url: URL, query: QueryRecord): void {
+  for (const [rawKey, value] of Object.entries(query)) {
+    if (isEmptyQueryValue(value)) continue;
+
+    const alreadyBracketed = rawKey.endsWith("[]");
+    const baseKey = alreadyBracketed ? rawKey.slice(0, -2) : rawKey;
+    if (!QUERY_KEY_RE.test(baseKey)) {
+      throw new Error(`Invalid query parameter name: ${rawKey}`);
+    }
+
+    const items = Array.isArray(value)
+      ? value
+      : baseKey === "expand"
+        ? [value]
+        : null;
+
+    if (items) {
+      for (const item of items) {
+        if (isEmptyQueryValue(item)) continue;
+        url.searchParams.append(`${baseKey}[]`, String(item));
+      }
+      continue;
+    }
+
+    if (alreadyBracketed) {
+      url.searchParams.append(`${baseKey}[]`, String(value));
+      continue;
+    }
+
+    url.searchParams.set(baseKey, String(value));
+  }
+}
+
 export class KitchenApiError extends Error {
   constructor(
     message: string,
@@ -106,7 +158,7 @@ export class KitchenClient {
     method: string,
     path: string,
     options?: {
-      query?: Record<string, string | number | boolean | undefined | null>;
+      query?: QueryRecord;
       body?: unknown;
     }
   ): Promise<T> {
@@ -123,15 +175,14 @@ export class KitchenClient {
     if (isBlockedHostname(url.hostname)) {
       throw new Error("Refusing local/private host");
     }
+    if (isInternalApiPath(url.pathname)) {
+      throw new Error(
+        "Bearer tokens cannot call /api/internal (401 Unauthenticated). That surface is session+CSRF for the Kitchen web UI. Use public /api paths and named tools. Client billing profiles, company membership, invoice finalize/send, quotes, and proposals are not on the public API yet."
+      );
+    }
 
     if (options?.query) {
-      for (const [key, value] of Object.entries(options.query)) {
-        if (value === undefined || value === null || value === "") continue;
-        if (!/^[A-Za-z0-9_.-]+$/.test(key)) {
-          throw new Error(`Invalid query parameter name: ${key}`);
-        }
-        url.searchParams.set(key, String(value));
-      }
+      applyQueryParams(url, options.query);
     }
 
     const headers: Record<string, string> = {
@@ -173,10 +224,7 @@ export class KitchenClient {
     }
   }
 
-  get<T = unknown>(
-    path: string,
-    query?: Record<string, string | number | boolean | undefined | null>
-  ) {
+  get<T = unknown>(path: string, query?: QueryRecord) {
     return this.request<T>("GET", path, { query });
   }
 
