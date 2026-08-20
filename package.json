@@ -2,7 +2,7 @@
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
   "description": "Unofficial Kitchen.co MCP: public Kitchen API for agents (tasks, boards, folders, invoices, docs, embeds, webhooks, memberships) plus a capabilities catalog.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"
@@ -84,32 +84,7 @@
         "command": "kitchenMcp.showLog",
         "title": "Kitchen.co MCP: Show Output Log"
       }
-    ],
-    "configuration": {
-      "title": "Kitchen.co MCP (Unofficial)",
-      "properties": {
-        "kitchenMcp.autoRegister": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically sync Kitchen MCP servers on startup (durable mcp.json + Cursor registerServer)."
-        },
-        "kitchenMcp.persistToUserMcpJson": {
-          "type": "boolean",
-          "default": true,
-          "description": "Write/merge Kitchen servers into ~/.cursor/mcp.json so they survive window reload. Never writes plaintext API keys into mcp.json."
-        },
-        "kitchenMcp.writePlaintextEnvFile": {
-          "type": "boolean",
-          "default": true,
-          "description": "Materialize short-lived 0600 env files under globalStorage so Cursor can spawn durable MCP servers. Disable to use OS environment variables only (more secure, more setup)."
-        },
-        "kitchenMcp.wipeEnvFilesOnDeactivate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Overwrite and delete materialized env files when the extension deactivates. Keys remain in SecretStorage + encrypted vault and are rematerialized on next activate."
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 - 2026-08-20
+
+### Removed
+- The four `kitchenMcp.*` Settings toggles. Behavior is fixed: sync workspaces into `mcp.json` on startup, keep the API-key env file, never wipe it on reload
+
+## 0.5.1 - 2026-08-20
+
+### Fixed
+- One Kitchen MCP server per profile. Durable `mcp.json` is the server; leftover session `registerServer` duplicates are dropped
+- Stop wiping the API-key env file on deactivate by default. That race made Cursor spawn with no `KITCHEN_API_KEY` and close the connection
+
 ## 0.5.0 - 2026-08-15
 
 ### Added

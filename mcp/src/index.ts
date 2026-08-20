@@ -2,7 +2,7 @@
 /**
  * Kitchen.co MCP server (stdio).
  * Env: KITCHEN_BASE_URL, KITCHEN_API_KEY
- * Optional: KITCHEN_PROFILE_NAME
+ * Optional: KITCHEN_WORKSPACE, KITCHEN_PROFILE_NAME
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,6 +12,7 @@ import { buildTools, SERVER_INSTRUCTIONS } from "./tools";
 
 async function main() {
   const profile =
+    process.env.KITCHEN_WORKSPACE?.trim() ||
     process.env.KITCHEN_PROFILE_NAME?.trim() ||
     process.env.KITCHEN_BASE_URL?.trim() ||
     "default";
@@ -22,7 +23,7 @@ async function main() {
   const server = new McpServer(
     {
       name: `kitchen-co-mcp-unofficial:${profile}`,
-      version: "0.5.0",
+      version: "0.6.0",
     },
     {
       instructions: SERVER_INSTRUCTIONS,

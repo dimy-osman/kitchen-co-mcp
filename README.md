@@ -8,8 +8,10 @@ Connects IDE to your [Kitchen.co](https://kitchen.co/) workspace so the agent ca
 
 Uses the public [Kitchen API](https://developer.kitchen.co/) and [MCP](https://modelcontextprotocol.io/). You supply your own workspace URL and API token. This extension does not provide Kitchen accounts or Kitchen.co support.
 
-[![Get Kitchen.co](https://img.shields.io/badge/Get-Kitchen.co-0F766E)](https://kitchen.co/)
-[![Sponsor](https://img.shields.io/badge/Sponsor-Kitchen.co%20MCP-FFD140?logo=paypal&logoColor=003087)](https://www.paypal.com/ncp/payment/XHEVPCDA66ABE)
+[![Get Kitchen.co](https://img.shields.io/badge/Get-Kitchen.co-0F766E?style=for-the-badge)](https://kitchen.co/)
+
+[![GitHub](https://img.shields.io/badge/GitHub-dimy--osman%2Fkitchen--co--mcp-181717?logo=github&logoColor=white)](https://github.com/dimy-osman/kitchen-co-mcp)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-FFD140?logo=paypal&logoColor=003087)](https://www.paypal.com/ncp/payment/XHEVPCDA66ABE)
 
 ## Install
 
@@ -68,18 +70,9 @@ See [SECURITY.md](./SECURITY.md) for how credentials are stored and what protect
 | **About / Disclaimer** | Unofficial status and legal notice |
 | **Add / Edit / Remove Profile** | Manage workspace URL + API token pairs |
 | **List Profiles** | Status (key stored, durable MCP, etc.) |
-| **Re-register MCP Servers** | Re-sync if tools disappear |
+| **Re-register MCP Servers** | Re-sync workspaces into `mcp.json` if needed |
 | **Test Connection** | Quick API check |
 | **Show Output Log** | Diagnostics (success is silent on startup) |
-
-## Settings
-
-| Setting | Default | Purpose |
-|---------|---------|---------|
-| `kitchenMcp.autoRegister` | `true` | Sync MCP on startup |
-| `kitchenMcp.persistToUserMcpJson` | `true` | Keep durable entries in `~/.cursor/mcp.json` |
-| `kitchenMcp.writePlaintextEnvFile` | `true` | Short-lived env files for Cursor spawn |
-| `kitchenMcp.wipeEnvFilesOnDeactivate` | `true` | Wipe those env files when the extension stops |
 
 Startup success is silent; you only get a toast if something fails. Setup help appears once on first install.
 

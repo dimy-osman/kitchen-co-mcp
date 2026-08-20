@@ -6,12 +6,7 @@ import {
   SETUP_PROMPT_KEY,
   UNOFFICIAL_ONE_LINER,
 } from "./disclaimer";
-import {
-  durableEntryExists,
-  envVarNameForProfile,
-  userMcpJsonPath,
-  wipeAllEnvFiles,
-} from "./durable-mcp";
+import { durableEntryExists, userMcpJsonPath } from "./durable-mcp";
 import { getLog, logError, logInfo } from "./log";
 import { McpRegistrar } from "./mcp-registrar";
 import {
@@ -68,44 +63,19 @@ export async function activate(
 
   const acknowledged = await ensureDisclaimerAcknowledged();
   if (!acknowledged) {
-    logInfo("Disclaimer not acknowledged — skipping auto-register.");
+    logInfo("Disclaimer not acknowledged — skipping workspace sync.");
     return;
   }
 
-  const auto = vscode.workspace
-    .getConfiguration("kitchenMcp")
-    .get<boolean>("autoRegister", true);
-
-  if (auto && store.list().length > 0) {
-    // Silent on success — toast only if something fails
+  if (store.list().length > 0) {
     await reregister({ notify: "errors", fromActivate: true });
-  } else if (store.list().length === 0) {
+  } else {
     await maybeShowOneTimeSetupPrompt();
   }
 }
 
-/**
- * Do NOT unregister MCP servers on deactivate (reload bug #1).
- * Optionally wipe short-lived plaintext env files; keys remain in
- * SecretStorage + encrypted vault and are rematerialized on activate.
- */
 export function deactivate(): void {
-  const wipe = vscode.workspace
-    .getConfiguration("kitchenMcp")
-    .get<boolean>("wipeEnvFilesOnDeactivate", true);
-
-  if (wipe && extensionContext) {
-    try {
-      wipeAllEnvFiles(extensionContext.globalStorageUri);
-    } catch {
-      // ignore
-    }
-  }
-
-  logInfo(
-    "deactivate: MCP registrations left intact; env files " +
-      (wipe ? "wiped" : "kept")
-  );
+  logInfo("deactivate: mcp.json entries and env files left in place");
 }
 
 async function ensureDisclaimerAcknowledged(): Promise<boolean> {
@@ -233,14 +203,11 @@ async function listProfiles(): Promise<void> {
       const hasKey = Boolean(await store.getApiKey(p.id));
       const name = mcpServerName(p);
       const durable = durableEntryExists(name);
-      const dynamic = registrar.isDynamicallyRegistered(name);
       return (
         `• ${p.name} → ${p.baseUrl}\n` +
         `  MCP: ${name}\n` +
-        `  key: ${hasKey ? "SecretStorage OK" : "MISSING"}\n` +
-        `  durable mcp.json: ${durable ? "yes" : "no"}\n` +
-        `  dynamic registerServer (this session): ${dynamic ? "yes" : "no"}\n` +
-        `  optional OS env name: ${envVarNameForProfile(p)}`
+        `  key: ${hasKey ? "stored" : "MISSING"}\n` +
+        `  mcp.json: ${durable ? "yes" : "no"}`
       );
     })
   );
@@ -268,9 +235,7 @@ async function reregister(options: {
   });
 
   const summary =
-    `registered profiles=${result.ok}, durable=${result.durableOk}, ` +
-    `dynamic=${result.dynamicOk}, skipped=${result.skipped}, ` +
-    `apiReady=${result.apiReady}` +
+    `synced workspaces=${result.ok}, skipped=${result.skipped}` +
     (result.errors.length ? `, errors: ${result.errors.join("; ")}` : "");
 
   logInfo(summary);
@@ -289,9 +254,9 @@ async function reregister(options: {
 
   if (options.notify === "always") {
     vscode.window.showInformationMessage(
-      `Kitchen.co MCP: sync OK — ${result.durableOk} durable` +
-        (result.dynamicOk ? `, ${result.dynamicOk} dynamic` : "") +
-        "."
+      `Kitchen.co MCP: sync OK — ${result.ok} workspace${
+        result.ok === 1 ? "" : "s"
+      } in mcp.json.`
     );
   }
   // notify === "errors" and success → stay quiet (details in Output log)

@@ -12,7 +12,7 @@ This is **not** an official Kitchen.co product.
 |--------|---------|
 | API token | VS Code/Cursor **SecretStorage** (OS keychain) — primary |
 | API token backup | **AES-256-GCM encrypted vault** under extension `globalStorage` (master key in SecretStorage) |
-| Short-lived env files | Optional `globalStorage/env/*.env` for Cursor durable MCP spawn (mode `0600`, wiped on deactivate by default) |
+| Env files | Optional `globalStorage/env/*.env` for Cursor MCP spawn (mode `0600`). Kept on disk so reload can start the server; deleted on profile remove |
 | `~/.cursor/mcp.json` | **Never** contains plaintext API keys |
 
 ## Protections
@@ -25,12 +25,6 @@ This is **not** an official Kitchen.co product.
 - Secrets redacted from Output logs and error toasts
 - Profile IDs must be UUIDs; names/slugs sanitized (no path traversal)
 - First-run unofficial/legal acknowledgment
-
-## Settings that affect security
-
-- `kitchenMcp.writePlaintextEnvFile` (default `true`) — required for durable MCP after reload in Cursor; disable for maximum hardness (use OS env `${env:…}` instead)
-- `kitchenMcp.wipeEnvFilesOnDeactivate` (default `true`) — overwrite+delete env files when the extension host stops
-- `kitchenMcp.persistToUserMcpJson` (default `true`) — merge durable MCP entries
 
 ## Reporting a vulnerability
 
