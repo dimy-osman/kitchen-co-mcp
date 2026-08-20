@@ -17,6 +17,7 @@ tsconfig.json
 node_modules/**/.bin/**
 *.vsix
 .cursor/**
+*.code-workspace
 docs/**
 **/*.md
 !README.md
