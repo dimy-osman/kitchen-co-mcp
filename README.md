@@ -11,7 +11,7 @@ Uses the public [Kitchen API](https://developer.kitchen.co/) and [MCP](https://m
 [![Get Kitchen.co](https://img.shields.io/badge/Get-Kitchen.co-0F766E?style=for-the-badge)](https://kitchen.co/)
 
 [![GitHub](https://img.shields.io/badge/GitHub-dimy--osman%2Fkitchen--co--mcp-181717?logo=github&logoColor=white)](https://github.com/dimy-osman/kitchen-co-mcp)
-[![Donate](https://img.shields.io/badge/Donate-PayPal-FFD140?logo=paypal&logoColor=003087)](https://www.paypal.com/ncp/payment/XHEVPCDA66ABE)
+[![Buy me coffee and AI tokens](https://img.shields.io/badge/Buy%20me%20coffee%20and%20AI%20tokens-PayPal-FFD140?logo=paypal&logoColor=003087)](https://www.paypal.com/ncp/payment/DQLKXFVPQCUG6)
 
 ## Install
 
@@ -99,6 +99,10 @@ npm run package   # writes vsix/kitchen-co-mcp-*.vsix
 ```
 
 Publishing notes for maintainers: [docs/PUBLISH.md](./docs/PUBLISH.md).
+
+## Buy me coffee and AI tokens
+
+If this extension helps, you can [buy me coffee and AI tokens](https://www.paypal.com/ncp/payment/DQLKXFVPQCUG6).
 
 ## License
 
