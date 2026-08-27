@@ -41,21 +41,21 @@ If you prefer a local package: download a release VSIX from GitHub, or build one
 
 ## What you can do
 
-Once a profile is connected, agents can use the public Kitchen API for that workspace. Call `kitchen_capabilities` first for the catalog (resources, permissions, clone, icons). Prefer named tools. Use `kitchen_request` for any other same-origin `/api` path.
+Once a profile is connected, agents can use the public Kitchen API for that workspace.
 
-Named coverage follows the public [Kitchen API](https://developer.kitchen.co/) (Bearer `/api` only):
+Cursor only loads **hot-path** named tools (schemas). Read MCP resource **`kitchen://api-index`** for the compact public-path map, then `kitchen_request`. Resource **`kitchen://capabilities`** (or tool `kitchen_capabilities`) is the full catalog — only if the index is missing or a path fails. Both resources are shipped in this extension, not fetched live from Kitchen.
 
-- **Folders, boards, conversations, links, docs, embeds, milestones, invoices** - list, get, create, update, delete, archive, restore, move, memberships
-- **Lists, labels, custom fields** - full board-scoped CRUD
-- **Tasks** - create/update/delete/move/toggle complete, plus subtask lists, subtasks, notes, comments, labels, members, custom-field values, attachments
-- **Messages and conversation notes** - list, get, create, update, delete
-- **Templates** - list, get, create, update, delete. Clone with `kitchen_create_folder` (`template`)
-- **Files** - list, get, create upload, complete, delete. PUT bytes to the returned `upload_url` yourself (off-origin)
-- **Clients and companies** - list, get, create, update, delete
-- **Recurring invoices and webhooks** - list, get, create, update, delete
-- **Members** - list, get
-- **Theme** - `kitchen_get_theme_configuration`
-- **Raw API** - `kitchen_request` for any other public `/api` path. Query arrays serialize as `key[]=value`
+Hot-path named tools (Bearer `/api` only):
+
+- **Folders** — list, get, children, create (including clone from a template)
+- **Boards / lists / labels** — list boards, list columns, list labels, add a label to a task
+- **Tasks** — list, get, create, update, move
+- **Members / clients** — list members, list/get clients
+- **Invoices** — list, get, create
+- **Conversations / messages** — list/get conversation, list/get/create message
+- **Meta** — `kitchen_whoami`, `kitchen_request`, `kitchen_capabilities`
+
+Other documented public paths (archive, memberships, companies, webhooks, files, docs, embeds, milestones, …) stay available via `kitchen_request` using `kitchen://api-index`. Query arrays serialize as `key[]=value`.
 
 Not on the public API (so not in MCP): client billing-profile CRUD, company user attach, invoice finalize/send, quotes, proposals. Do not scrape cookies. Deprecated Cards / legacy Attachments are skipped on purpose.
 

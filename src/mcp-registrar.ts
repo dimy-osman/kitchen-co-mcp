@@ -72,7 +72,7 @@ export class McpRegistrar {
 
       names.push(name);
       try {
-        upsertDurableMcpEntry({
+        await upsertDurableMcpEntry({
           extensionPath: this.context.extensionPath,
           globalStorageUri: this.context.globalStorageUri,
           profile,
@@ -112,6 +112,6 @@ export class McpRegistrar {
   async removeProfileRegistration(profile: KitchenProfile): Promise<void> {
     const name = mcpServerName(profile);
     this.unregisterServer(name);
-    removeDurableMcpEntry(this.context.globalStorageUri, name);
+    await removeDurableMcpEntry(this.context.globalStorageUri, name);
   }
 }

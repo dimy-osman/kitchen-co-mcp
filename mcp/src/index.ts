@@ -7,8 +7,13 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  API_INDEX_TEXT,
+  API_INDEX_URI,
+  CAPABILITIES_URI,
+} from "./hot-path";
 import { createClientFromEnv } from "./kitchen-client";
-import { buildTools, SERVER_INSTRUCTIONS } from "./tools";
+import { CAPABILITIES, buildTools, SERVER_INSTRUCTIONS } from "./tools";
 
 async function main() {
   const profile =
@@ -23,11 +28,49 @@ async function main() {
   const server = new McpServer(
     {
       name: `kitchen-co-mcp-unofficial:${profile}`,
-      version: "0.6.0",
+      version: "0.7.3",
     },
     {
       instructions: SERVER_INSTRUCTIONS,
     }
+  );
+
+  server.registerResource(
+    "kitchen-api-index",
+    API_INDEX_URI,
+    {
+      description:
+        "Compact public Kitchen path index for kitchen_request. Local to this MCP, not a live Kitchen dump. Read on demand instead of kitchen_capabilities.",
+      mimeType: "text/plain",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "text/plain",
+          text: API_INDEX_TEXT,
+        },
+      ],
+    })
+  );
+
+  server.registerResource(
+    "kitchen-capabilities",
+    CAPABILITIES_URI,
+    {
+      description:
+        "Full Kitchen MCP catalog (hot_path, request_index, permissions, gaps). Same payload as kitchen_capabilities. Local to this MCP.",
+      mimeType: "application/json",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "application/json",
+          text: JSON.stringify(CAPABILITIES, null, 2),
+        },
+      ],
+    })
   );
 
   // MCP SDK + Zod generics can exceed TS instantiation depth on large tool sets

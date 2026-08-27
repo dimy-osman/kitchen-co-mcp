@@ -63,9 +63,105 @@ function readMcpJson(filePath: string): McpJson {
   return parsed;
 }
 
-function writeMcpJsonAtomic(filePath: string, data: McpJson): void {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isReplaceLockError(err: unknown): boolean {
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as NodeJS.ErrnoException).code)
+      : "";
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
+}
+
+function unlinkQuiet(filePath: string): void {
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // leftover tmp is harmless
+  }
+}
+
+function readTextIfExists(filePath: string): string | undefined {
+  try {
+    if (!fs.existsSync(filePath)) return undefined;
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Write text, skipping I/O when the file already matches.
+ * Windows cannot rename over a dest that Cursor (or Defender) has open,
+ * so fall back to in-place overwrite after a short retry.
+ */
+async function replaceTextFile(
+  filePath: string,
+  body: string,
+  options?: { mode?: number }
+): Promise<void> {
+  if (readTextIfExists(filePath) === body) {
+    return;
+  }
+
+  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, body, {
+    encoding: "utf8",
+    ...(options?.mode !== undefined ? { mode: options.mode } : {}),
+  });
+
+  let renamed = false;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      fs.renameSync(tmp, filePath);
+      renamed = true;
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (!isReplaceLockError(err)) {
+        unlinkQuiet(tmp);
+        throw err;
+      }
+      await sleep(40 * 2 ** attempt);
+    }
+  }
+
+  if (!renamed) {
+    try {
+      fs.writeFileSync(filePath, body, {
+        encoding: "utf8",
+        ...(options?.mode !== undefined ? { mode: options.mode } : {}),
+      });
+    } catch (writeErr) {
+      unlinkQuiet(tmp);
+      const detail = writeErr instanceof Error ? writeErr.message : String(writeErr);
+      const prior = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      throw new Error(
+        `${detail} (rename: ${prior}). Windows has this file locked (often Cursor holding the MCP envFile). Retry Re-register, or reload the window after the Kitchen MCP server disconnects.`
+      );
+    }
+    unlinkQuiet(tmp);
+  }
+
+  if (options?.mode !== undefined) {
+    try {
+      fs.chmodSync(filePath, options.mode);
+    } catch {
+      // Windows best-effort
+    }
+  }
+}
+
+async function writeMcpJsonAtomic(filePath: string, data: McpJson): Promise<void> {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
+
+  const nextBody = `${JSON.stringify(data, null, 2)}\n`;
+  if (readTextIfExists(filePath) === nextBody) {
+    return;
+  }
 
   if (fs.existsSync(filePath)) {
     try {
@@ -75,9 +171,7 @@ function writeMcpJsonAtomic(filePath: string, data: McpJson): void {
     }
   }
 
-  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  fs.renameSync(tmp, filePath);
+  await replaceTextFile(filePath, nextBody);
 }
 
 export function durableEntryExists(serverName: string): boolean {
@@ -90,25 +184,18 @@ export function durableEntryExists(serverName: string): boolean {
   }
 }
 
-function writeProfileEnvFile(
+async function writeProfileEnvFile(
   globalStorageUri: vscode.Uri,
   profile: KitchenProfile,
   apiKey: string
-): string {
+): Promise<string> {
   const filePath = profileEnvFilePath(globalStorageUri, profile);
   const cleaned = apiKey.trim().replace(/[\r\n\0]/g, "");
   if (!cleaned) {
     throw new Error("Refusing to write empty API key");
   }
   const body = `# Managed by Kitchen.co MCP (Unofficial). Do not commit or share\nKITCHEN_API_KEY=${cleaned}\n`;
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, body, { encoding: "utf8", mode: 0o600 });
-  fs.renameSync(tmp, filePath);
-  try {
-    fs.chmodSync(filePath, 0o600);
-  } catch {
-    // best-effort on Windows
-  }
+  await replaceTextFile(filePath, body, { mode: 0o600 });
   return filePath;
 }
 
@@ -146,13 +233,26 @@ function resolveMcpEntryScript(extensionPath: string): string {
   return assertInsideDirectory(entryPath, extensionPath, "MCP entry script");
 }
 
-export function upsertDurableMcpEntry(options: {
+function managedEntryMatches(
+  existing: McpServerEntry | undefined,
+  next: McpServerEntry
+): boolean {
+  if (!existing || !isKitchenManaged(existing)) return false;
+  return (
+    existing.command === next.command &&
+    JSON.stringify(existing.args ?? []) === JSON.stringify(next.args ?? []) &&
+    JSON.stringify(existing.env ?? {}) === JSON.stringify(next.env ?? {}) &&
+    existing.envFile === next.envFile
+  );
+}
+
+export async function upsertDurableMcpEntry(options: {
   extensionPath: string;
   globalStorageUri: vscode.Uri;
   profile: KitchenProfile;
   apiKey: string;
   previousServerName?: string;
-}): { serverName: string; mcpJsonPath: string; envFile: string } {
+}): Promise<{ serverName: string; mcpJsonPath: string; envFile: string }> {
   const serverName = mcpServerName(options.profile);
   const mcpJsonPath = userMcpJsonPath();
   const entryPath = resolveMcpEntryScript(options.extensionPath);
@@ -162,7 +262,7 @@ export function upsertDurableMcpEntry(options: {
     "node_modules"
   );
 
-  const envFile = writeProfileEnvFile(
+  const envFile = await writeProfileEnvFile(
     options.globalStorageUri,
     options.profile,
     options.apiKey
@@ -193,8 +293,7 @@ export function upsertDurableMcpEntry(options: {
     );
   }
 
-  cfg.mcpServers = cfg.mcpServers ?? {};
-  cfg.mcpServers[serverName] = {
+  const nextEntry: McpServerEntry = {
     command: "node",
     args: [entryPath],
     env: {
@@ -207,16 +306,24 @@ export function upsertDurableMcpEntry(options: {
     [KITCHEN_MANAGED]: KITCHEN_MANAGED_VALUE,
   };
 
-  writeMcpJsonAtomic(mcpJsonPath, cfg);
+  cfg.mcpServers = cfg.mcpServers ?? {};
+  if (managedEntryMatches(existing, nextEntry)) {
+    logInfo(`MCP "${serverName}" already current; skipped mcp.json write`);
+    return { serverName, mcpJsonPath, envFile };
+  }
+
+  cfg.mcpServers[serverName] = nextEntry;
+
+  await writeMcpJsonAtomic(mcpJsonPath, cfg);
   logInfo(`Upserted MCP "${serverName}"`);
 
   return { serverName, mcpJsonPath, envFile };
 }
 
-export function removeDurableMcpEntry(
+export async function removeDurableMcpEntry(
   globalStorageUri: vscode.Uri,
   serverName: string
-): boolean {
+): Promise<boolean> {
   const mcpJsonPath = userMcpJsonPath();
   if (!fs.existsSync(mcpJsonPath)) {
     deleteProfileEnvFile(globalStorageUri, serverName);
@@ -238,7 +345,7 @@ export function removeDurableMcpEntry(
   }
 
   delete cfg.mcpServers![serverName];
-  writeMcpJsonAtomic(mcpJsonPath, cfg);
+  await writeMcpJsonAtomic(mcpJsonPath, cfg);
   deleteProfileEnvFile(globalStorageUri, serverName);
   logInfo(`Removed MCP entry: ${serverName}`);
   return true;

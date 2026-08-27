@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  API_INDEX_URI,
+  CAPABILITIES_URI,
+  HOT_PATH_TOOLS,
+  REQUEST_INDEX,
+  filterHotPathTools,
+} from "./hot-path";
 import { KitchenClient } from "./kitchen-client";
 import { buildPublicApiTools } from "./public-api-tools";
 import {
@@ -54,18 +61,23 @@ export const CAPABILITIES = {
     "Unofficial Kitchen.co MCP. You can use the public Kitchen REST API for this workspace. Prefer named tools. Use kitchen_request for any other same-origin public /api path.",
   docs: "https://developer.kitchen.co/",
   how_to_use: [
-    "Call kitchen_capabilities when you need this catalog.",
+    "Named tools are the hot path only (folders/boards/tasks/messages/clients/invoices). Call them directly.",
+    "Read resource kitchen://api-index for the compact path index, then kitchen_request. Do not call kitchen_capabilities first unless the resource is missing or a path failed.",
+    "Resource kitchen://capabilities and tool kitchen_capabilities return this full catalog (hot_path, request_index, gaps).",
     "Call kitchen_whoami to confirm auth.",
-    "To create a task: kitchen_list_boards or kitchen_get_board, then kitchen_list_lists for that board, then kitchen_create_task with board_id + list + title.",
-    "To duplicate a project: kitchen_list_templates, then kitchen_create_folder with template plus optional clone and memberships.",
-    "To change access: set visibility (private/internal/shared) and optional role on create/update for boards, folders, conversations, and links.",
-    "To change custom-field icons: kitchen_list_custom_fields then kitchen_update_custom_field with show_icon and color.",
-    "To fill invoice Bill to / Račun za: kitchen_update_invoice with billing_profile (bp_...). Creating or reading billing profiles is not on the public API.",
+    "To create a task: kitchen_list_boards, kitchen_list_lists for that board, kitchen_create_task with board_id + list + title.",
+    "To duplicate a project: kitchen_request GET /templates, then kitchen_create_folder with template plus optional clone and memberships.",
+    "To change access: visibility private|internal|shared and optional role. Named create/update on folders; other nodes via kitchen_request PUT.",
+    "To change custom-field icons: kitchen_request GET /boards/{id}/custom-fields then PUT /custom-fields/{id} with show_icon and color.",
+    "To fill invoice Bill to / Račun za: kitchen_request PUT /invoices/{id} with billing_profile (bp_...). Profile CRUD is not on the public API.",
     "To expand invoice relations: kitchen_get_invoice with expand: [\"billing_profile\"] (must be an array). kitchen_request query arrays serialize as expand[]=.",
-    "To share a node: kitchen_create_{folder|board|conversation|invoice|milestone|doc|embed|link}_membership with user or company plus role.",
-    "To upload a file: kitchen_create_file, PUT bytes to the returned upload_url yourself (off-origin), then kitchen_complete_file, then attach once.",
-    "Anything not named here: kitchen_request with method + path under public /api. Never call /api/internal.",
+    "To share a node: kitchen_request POST /{folders|boards|conversations|invoices|milestones|docs|embeds|links}/{id}/memberships with user or company plus role.",
+    "To upload a file: kitchen_request POST /files, PUT bytes to upload_url (off-origin), POST /files/{id}/complete, then attach once.",
+    "Anything not a named hot-path tool: kitchen_request with method + path under public /api. Never call /api/internal.",
   ],
+  mcp_resources: [API_INDEX_URI, CAPABILITIES_URI],
+  hot_path: HOT_PATH_TOOLS,
+  request_index: REQUEST_INDEX,
   permissions: {
     visibility: ["private", "internal", "shared"],
     board_roles: [
@@ -101,7 +113,7 @@ export const CAPABILITIES = {
   },
   icons: {
     custom_fields:
-      "Custom fields support show_icon (boolean) and color. Use kitchen_list_custom_fields and kitchen_update_custom_field.",
+      "Custom fields support show_icon (boolean) and color. kitchen_request GET /boards/{id}/custom-fields then PUT /custom-fields/{id}.",
     sidebar:
       "Board/folder sidebar icons are not documented on the public API. Try kitchen_request if you discover a field.",
   },
@@ -176,11 +188,11 @@ export const CAPABILITIES = {
       "memberships",
     ],
     files: [
-      "list",
-      "get",
-      "create upload",
+      "get by id",
+      "start upload (POST /files; collection GET is 405)",
       "complete upload",
       "delete",
+      "list via folder GET /folders/{id}/files",
     ],
     templates: ["list", "get", "create", "update", "delete"],
     clients: ["list", "get", "create", "update", "delete"],
@@ -232,7 +244,6 @@ export const CAPABILITIES = {
       "memberships",
     ],
     webhooks: ["list", "get", "create", "update", "delete"],
-    themes: ["get configuration"],
   },
   auth_boundary: {
     public:
@@ -241,13 +252,14 @@ export const CAPABILITIES = {
       "/api/internal/* is the Kitchen web UI (session cookie + CSRF). Bearer tokens get 401 Unauthenticated. kitchen_request refuses these paths. Do not scrape cookies or CSRF tokens.",
   },
   not_on_public_api: [
-    "Client billing-profile CRUD. Docs only publish the object schema. Attach an existing bp_... with kitchen_update_invoice.",
+    "Client billing-profile CRUD. Docs only publish the object schema. Attach an existing bp_... with kitchen_request PUT /invoices/{id} (billing_profile).",
     "Company membership (POST /companies/{id}/users). PUT /clients/{id} with company is ignored.",
     "Invoice finalize and send (email / conversation).",
     "Quotes, proposals, express checkout.",
     "File thread/comment writes (docs publish objects only).",
     "Deprecated Cards API and legacy Attachments API. Use Tasks.",
     "Workspace subscription billing under /api/internal/billing/*.",
+    "Theme configuration (GET /themes and GET /themes/configuration return 404 on the public Bearer API).",
   ],
   known_paths: [
     "GET/POST /folders",
@@ -269,8 +281,7 @@ export const CAPABILITIES = {
     "GET /templates/{id}",
     "GET /boards/{id}/custom-fields",
     "PUT /custom-fields/{id}",
-    "GET /files",
-    "POST /files",
+    "POST /files (GET /files is 405)",
     "GET/DELETE /files/{id}",
     "POST /files/{id}/complete",
     "GET/POST /clients",
@@ -291,7 +302,6 @@ export const CAPABILITIES = {
     "GET/PUT/DELETE /embeds/{id}",
     "GET/POST /webhooks",
     "GET/PUT/DELETE /webhooks/{id}",
-    "GET /themes/configuration",
     "POST /{node}/{id}/archive|restore|move",
     "GET/POST /{node}/{id}/memberships",
     "PUT/DELETE /{node}/{id}/memberships/{id}",
@@ -299,26 +309,19 @@ export const CAPABILITIES = {
 };
 
 export const SERVER_INSTRUCTIONS = [
-  "Unofficial Kitchen.co MCP for this workspace. You may use the public Kitchen REST API.",
-  "Start with kitchen_capabilities if you need the catalog of tools, permissions, clone, icons, and API gaps.",
-  "Prefer named kitchen_* tools. Use kitchen_request for any other same-origin path under public /api.",
-  "Bearer tokens cannot call /api/internal (session+CSRF only). Do not scrape cookies.",
-  "Create tasks with kitchen_create_task (board_id + list + title). List columns come from kitchen_list_lists.",
-  "Duplicate a template with kitchen_create_folder (template, optional clone, memberships).",
-  "Permissions: visibility private|internal|shared plus optional role on boards, folders, conversations, links.",
-  "Custom-field icons: kitchen_update_custom_field with show_icon and color.",
-  "Invoices: create/update/archive/restore/move plus recurring invoices. Pass billing_profile to fill Bill to.",
-  "Memberships, labels, subtasks, comments, embeds, webhooks, docs, milestones, and file upload are named tools on the public API.",
-  "Client billing-profile CRUD, company user attach, invoice finalize/send, quotes, and proposals are not on the public API.",
-  "Docs: https://developer.kitchen.co/",
+  "Unofficial Kitchen.co MCP. Public Kitchen REST API only.",
+  "Hot-path named tools: folders/boards/lists/tasks/labels/members/clients/invoices/conversations/messages plus kitchen_whoami, kitchen_request, kitchen_capabilities.",
+  "For other public paths: read resource kitchen://api-index (compact method+path map, local to this MCP), then kitchen_request. Do not paste or call the full catalog every turn.",
+  "Full catalog: resource kitchen://capabilities or tool kitchen_capabilities (only if the index resource is missing or a path failed).",
+  "Bearer tokens cannot call /api/internal. Create tasks with kitchen_create_task (board_id + list + title). Docs: https://developer.kitchen.co/",
 ].join(" ");
 
 export function buildTools(client: KitchenClient): RegisteredTool[] {
-  return [
+  const all: RegisteredTool[] = [
     {
       name: "kitchen_capabilities",
       description:
-        "Read this first. Catalog of what this Kitchen MCP can do: resources, permissions, clone, icons, public vs /api/internal auth boundary, and known public-API gaps (billing profiles, company membership).",
+        "Full catalog for this MCP (hot_path, request_index, permissions, gaps). Prefer resource kitchen://api-index + kitchen_request. Call this only if that resource is missing or a path failed.",
       inputSchema: z.object({}),
       handler: async () => ok(CAPABILITIES),
     },
@@ -361,7 +364,7 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     {
       name: "kitchen_request",
       description:
-        "Raw Kitchen API call for a public /api path. Use named tools first. Do not call /api/internal (Bearer 401). Query arrays serialize as key[]=value (Laravel). Example expand: { expand: [\"billing_profile\"] }.",
+        "Raw Kitchen API call for a public /api path. Use a named hot-path tool when one exists. Otherwise read resource kitchen://api-index (or kitchen_capabilities.request_index) for method+path. Do not call /api/internal (Bearer 401). Query arrays serialize as key[]=value (Laravel). Example expand: { expand: [\"billing_profile\"] }.",
       inputSchema: z.object({
         method: z
           .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
@@ -1757,4 +1760,5 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     },
     ...buildPublicApiTools(client),
   ];
+  return filterHotPathTools(all);
 }

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.7.3 - 2026-08-27
+
+### Fixed
+- Windows activate no longer fails with `EPERM` when rewriting the API-key env file while Cursor has it open. Unchanged env / `mcp.json` entries are left alone; a locked dest falls back to in-place overwrite after retry
+
+## 0.7.2 - 2026-08-23
+
+### Fixed
+- Capabilities catalog no longer lists theme configuration or a collection `GET /files` as public. Those were live 404 / 405 on Bearer tokens
+- Catalog now names the on-demand MCP resources (`kitchen://api-index`, `kitchen://capabilities`)
+
+## 0.7.1 - 2026-08-23
+
+### Added
+- MCP resources `kitchen://api-index` (compact path map) and `kitchen://capabilities` (full catalog). Read on demand instead of stuffing the index into server instructions
+
+### Fixed
+- Path index: `GET /files` is not public (405; POST to start upload). Theme configuration is not on the public Bearer API (404)
+
+### Changed
+- Server instructions are a short pointer to the hot-path tools and those two resources, not the full index
+
+## 0.7.0 - 2026-08-23
+
+### Changed
+- MCP `tools/list` advertises **27** named tools (hot path + `kitchen_whoami` + `kitchen_request` + `kitchen_capabilities`) instead of ~199 JSON Schemas
+- Compact public-path index so agents can call `kitchen_request` without loading ~199 JSON Schemas (moved to MCP resources in 0.7.1)
+- `kitchen_capabilities` still returns the full catalog (`hot_path`, `request_index`, gaps) on demand
+
+### Removed
+- Remaining public-API wrappers from `tools/list` (archive/restore/move, memberships, webhooks, embeds, docs writes, files, companies, etc.). Those paths stay in the index and `kitchen_request`; handler code is still in the repo for later promotion
+
 ## 0.6.0 - 2026-08-20
 
 ### Removed
