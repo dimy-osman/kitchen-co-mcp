@@ -2,7 +2,8 @@ import type { RegisteredTool } from "./tool-helpers";
 
 /**
  * Named tools advertised on tools/list. Everything else is kitchen_request
- * plus kitchen_request and resources kitchen://api-index / kitchen://capabilities.
+ * plus kitchen_request and resources kitchen://api-index /
+ * kitchen://capabilities / kitchen://invoice-defaults.
  */
 export const HOT_PATH_TOOLS: readonly string[] = [
   "kitchen_capabilities",
@@ -75,10 +76,10 @@ export const REQUEST_INDEX: readonly string[] = [
   "GET/POST /templates ; GET/PUT/DELETE /templates/{id} — clone: kitchen_create_folder with template",
   "GET/POST /links ; GET/PUT/DELETE /links/{id} ; archive|restore|move ; memberships",
   "POST /files — start upload only (GET /files is 405). GET/DELETE /files/{id} ; POST /files/{id}/complete — PUT bytes to upload_url yourself",
-  "PUT /invoices/{id} — update invoice (billing_profile fills Bill to)",
+  "PUT /invoices/{id} — update invoice (billing_profile fills Bill to). Omit header/memo/footer_notes unless the user asked; Kitchen uses Settings → Invoices → Design & Details (kitchen://invoice-defaults)",
   "DELETE /invoices/{id} ; POST /invoices/{id}/archive|restore|move",
   "GET/POST /invoices/{id}/memberships ; PUT/DELETE .../memberships/{id}",
-  "GET/POST /recurring-invoices ; GET/PUT/DELETE /recurring-invoices/{id}",
+  "GET/POST /recurring-invoices ; GET/PUT/DELETE /recurring-invoices/{id} — same Design & Details omit rule as invoices",
   "POST /clients ; PUT/DELETE /clients/{id} — company on PUT is ignored by public API",
   "GET /members/{id}",
   "GET/POST /companies ; GET/PUT/DELETE /companies/{id} — attaching users is not public",
@@ -92,7 +93,27 @@ export const REQUEST_INDEX: readonly string[] = [
 
 export const API_INDEX_URI = "kitchen://api-index";
 export const CAPABILITIES_URI = "kitchen://capabilities";
+export const INVOICE_DEFAULTS_URI = "kitchen://invoice-defaults";
 export const API_INDEX_TEXT = REQUEST_INDEX.join("\n");
+
+/**
+ * Agent policy for invoice Design & Details. Kitchen already stores
+ * workspace defaults; sending these fields on create/update overrides them.
+ */
+export const INVOICE_DEFAULTS_TEXT = [
+  "Invoice Design & Details defaults (Kitchen Settings → Invoices → Design & Details).",
+  "",
+  "Kitchen already stores workspace defaults for invoice appearance: header, memo, footer (IBAN/SWIFT, legal text), and similar template fields. Invoices made in Kitchen pick those up automatically.",
+  "",
+  "HARD RULE:",
+  "- Never set header, memo, footer_notes, footer, or any other Design & Details / template field on invoice create or update unless the user explicitly asked to change that field on this invoice.",
+  "- Leave those keys off the payload entirely. Applies to kitchen_create_invoice, kitchen_update_invoice, kitchen_request POST/PUT /invoices and /recurring-invoices, and extra body fields.",
+  "- Do not guess, copy, or shorten them from another invoice or from Settings. Sending them overrides the saved template.",
+  "- The public API rejects footer_notes over 255 characters. A copied workspace footer (often longer) gets truncated.",
+  "- Same rule for any invoice field that already has a workspace default: do not send it unless the user asked.",
+  "",
+  "Usual create fields that are not Design & Details defaults: line items, client, billing_profile, dates, currency, folder, visibility, language, number.",
+].join("\n");
 
 export function filterHotPathTools(tools: RegisteredTool[]): RegisteredTool[] {
   const hot = tools.filter((t) => HOT_PATH_SET.has(t.name));

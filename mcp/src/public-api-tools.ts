@@ -1080,7 +1080,7 @@ export function buildPublicApiTools(client: KitchenClient): RegisteredTool[] {
     ),
     tool(
       "kitchen_create_recurring_invoice",
-      "Create a recurring invoice (POST /recurring-invoices).",
+      "Create a recurring invoice (POST /recurring-invoices). Omit header, memo, footer_notes, and other Design & Details fields unless the user explicitly asked; Kitchen fills those from Settings → Invoices → Design & Details (kitchen://invoice-defaults).",
       z.object({
         client: z.string().optional(),
         billing_profile: z.string().optional(),
@@ -1092,7 +1092,9 @@ export function buildPublicApiTools(client: KitchenClient): RegisteredTool[] {
         recurring_start_date: z.string().optional(),
         recurring_end_date: z.string().optional(),
         target_folder: z.string().optional(),
-        extra: extraBody,
+        extra: extraBody.describe(
+          "Any extra Kitchen API fields not listed above. Do not include header, memo, footer_notes, footer, or other Design & Details defaults unless the user explicitly asked."
+        ),
       }),
       (args) =>
         client.post(
@@ -1117,10 +1119,12 @@ export function buildPublicApiTools(client: KitchenClient): RegisteredTool[] {
     ),
     tool(
       "kitchen_update_recurring_invoice",
-      "Update a recurring invoice (PUT /recurring-invoices/{id}).",
+      "Update a recurring invoice (PUT /recurring-invoices/{id}). Omit header, memo, footer_notes, and other Design & Details fields unless the user explicitly asked (kitchen://invoice-defaults).",
       z.object({
         id: z.string(),
-        extra: extraBody,
+        extra: extraBody.describe(
+          "Invoice fields to update. Do not include header, memo, footer_notes, footer, or other Design & Details defaults unless the user explicitly asked."
+        ),
       }),
       (args) =>
         client.put(

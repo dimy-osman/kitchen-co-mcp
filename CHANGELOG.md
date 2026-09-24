@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.4 - 2026-09-24
+
+### Added
+- MCP resource `kitchen://invoice-defaults`: do not send invoice Design & Details fields (header, memo, footer_notes, and other workspace template defaults) unless the user explicitly asked. Kitchen applies Settings → Invoices → Design & Details automatically. Sending those values overrides the template; the public API also truncates `footer_notes` at 255 characters.
+
+### Changed
+- `kitchen_create_invoice` / `kitchen_update_invoice` (and recurring invoice writes) tell agents to omit those fields
+- Capabilities catalog, path index, and server instructions point at the new resource
+
 ## 0.7.3 - 2026-08-27
 
 ### Fixed

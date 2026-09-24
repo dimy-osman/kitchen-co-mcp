@@ -2,7 +2,7 @@
   "name": "kitchen-co-mcp",
   "displayName": "Kitchen.co MCP (Unofficial)",
   "description": "Unofficial Kitchen.co MCP: hot-path Kitchen tools for agents, a compact path index, kitchen_request, and a capabilities catalog.",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "publisher": "dimy-osman",
   "author": {
     "name": "Dimy Osman"

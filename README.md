@@ -43,7 +43,7 @@ If you prefer a local package: download a release VSIX from GitHub, or build one
 
 Once a profile is connected, agents can use the public Kitchen API for that workspace.
 
-Cursor only loads **hot-path** named tools (schemas). Read MCP resource **`kitchen://api-index`** for the compact public-path map, then `kitchen_request`. Resource **`kitchen://capabilities`** (or tool `kitchen_capabilities`) is the full catalog — only if the index is missing or a path fails. Both resources are shipped in this extension, not fetched live from Kitchen.
+Cursor only loads **hot-path** named tools (schemas). Read MCP resource **`kitchen://api-index`** for the compact public-path map, then `kitchen_request`. Resource **`kitchen://capabilities`** (or tool `kitchen_capabilities`) is the full catalog — only if the index is missing or a path fails. Resource **`kitchen://invoice-defaults`** is the invoice Design & Details rule: leave header, memo, and footer off unless the user asked. Resources are shipped in this extension, not fetched live from Kitchen.
 
 Hot-path named tools (Bearer `/api` only):
 
@@ -51,7 +51,7 @@ Hot-path named tools (Bearer `/api` only):
 - **Boards / lists / labels** — list boards, list columns, list labels, add a label to a task
 - **Tasks** — list, get, create, update, move
 - **Members / clients** — list members, list/get clients
-- **Invoices** — list, get, create
+- **Invoices** — list, get, create. Do not set header, memo, or footer unless asked; Kitchen uses Settings → Invoices → Design & Details
 - **Conversations / messages** — list/get conversation, list/get/create message
 - **Meta** — `kitchen_whoami`, `kitchen_request`, `kitchen_capabilities`
 

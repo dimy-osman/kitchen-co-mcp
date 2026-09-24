@@ -3,6 +3,7 @@ import {
   API_INDEX_URI,
   CAPABILITIES_URI,
   HOT_PATH_TOOLS,
+  INVOICE_DEFAULTS_URI,
   REQUEST_INDEX,
   filterHotPathTools,
 } from "./hot-path";
@@ -63,19 +64,20 @@ export const CAPABILITIES = {
   how_to_use: [
     "Named tools are the hot path only (folders/boards/tasks/messages/clients/invoices). Call them directly.",
     "Read resource kitchen://api-index for the compact path index, then kitchen_request. Do not call kitchen_capabilities first unless the resource is missing or a path failed.",
-    "Resource kitchen://capabilities and tool kitchen_capabilities return this full catalog (hot_path, request_index, gaps).",
+    "Resource kitchen://capabilities and tool kitchen_capabilities return this full catalog (hot_path, request_index, invoice_defaults, gaps). Resource kitchen://invoice-defaults is the Design & Details omit rule.",
     "Call kitchen_whoami to confirm auth.",
     "To create a task: kitchen_list_boards, kitchen_list_lists for that board, kitchen_create_task with board_id + list + title.",
     "To duplicate a project: kitchen_request GET /templates, then kitchen_create_folder with template plus optional clone and memberships.",
     "To change access: visibility private|internal|shared and optional role. Named create/update on folders; other nodes via kitchen_request PUT.",
     "To change custom-field icons: kitchen_request GET /boards/{id}/custom-fields then PUT /custom-fields/{id} with show_icon and color.",
+    "Invoice Design & Details (header, memo, footer_notes, legal/IBAN footer): omit unless the user explicitly asked to change them. Kitchen applies Settings → Invoices → Design & Details. Read kitchen://invoice-defaults. Sending those fields overrides the saved template; footer_notes over 255 characters is rejected or truncated.",
     "To fill invoice Bill to / Račun za: kitchen_request PUT /invoices/{id} with billing_profile (bp_...). Profile CRUD is not on the public API.",
     "To expand invoice relations: kitchen_get_invoice with expand: [\"billing_profile\"] (must be an array). kitchen_request query arrays serialize as expand[]=.",
     "To share a node: kitchen_request POST /{folders|boards|conversations|invoices|milestones|docs|embeds|links}/{id}/memberships with user or company plus role.",
     "To upload a file: kitchen_request POST /files, PUT bytes to upload_url (off-origin), POST /files/{id}/complete, then attach once.",
     "Anything not a named hot-path tool: kitchen_request with method + path under public /api. Never call /api/internal.",
   ],
-  mcp_resources: [API_INDEX_URI, CAPABILITIES_URI],
+  mcp_resources: [API_INDEX_URI, CAPABILITIES_URI, INVOICE_DEFAULTS_URI],
   hot_path: HOT_PATH_TOOLS,
   request_index: REQUEST_INDEX,
   permissions: {
@@ -110,6 +112,18 @@ export const CAPABILITIES = {
   duplication: {
     how: "POST /folders with template (template folder id) plus optional clone and memberships. That clones a Kitchen template into a new folder.",
     tool: "kitchen_create_folder",
+  },
+  invoice_defaults: {
+    resource: INVOICE_DEFAULTS_URI,
+    source:
+      "Kitchen Settings → Invoices → Design & Details (header, memo, IBAN/SWIFT footer, legal text).",
+    rule: "Do not send header, memo, footer_notes, footer, or any other Design & Details / template field on invoice create or update unless the user explicitly asked to change that field. Leave those keys off the payload so Kitchen applies the saved workspace defaults. Do not copy, guess, or shorten them from another invoice. The public API rejects footer_notes over 255 characters and will truncate a longer workspace footer.",
+    applies_to: [
+      "kitchen_create_invoice",
+      "kitchen_update_invoice",
+      "kitchen_request POST/PUT /invoices and /recurring-invoices",
+      "extra body fields on those calls",
+    ],
   },
   icons: {
     custom_fields:
@@ -313,6 +327,7 @@ export const SERVER_INSTRUCTIONS = [
   "Hot-path named tools: folders/boards/lists/tasks/labels/members/clients/invoices/conversations/messages plus kitchen_whoami, kitchen_request, kitchen_capabilities.",
   "For other public paths: read resource kitchen://api-index (compact method+path map, local to this MCP), then kitchen_request. Do not paste or call the full catalog every turn.",
   "Full catalog: resource kitchen://capabilities or tool kitchen_capabilities (only if the index resource is missing or a path failed).",
+  "Invoice header, memo, and footer_notes: omit unless the user explicitly asked; Kitchen uses Settings → Invoices → Design & Details. Policy: kitchen://invoice-defaults.",
   "Bearer tokens cannot call /api/internal. Create tasks with kitchen_create_task (board_id + list + title). Docs: https://developer.kitchen.co/",
 ].join(" ");
 
@@ -321,7 +336,7 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     {
       name: "kitchen_capabilities",
       description:
-        "Full catalog for this MCP (hot_path, request_index, permissions, gaps). Prefer resource kitchen://api-index + kitchen_request. Call this only if that resource is missing or a path failed.",
+        "Full catalog for this MCP (hot_path, request_index, permissions, invoice_defaults, gaps). Prefer resource kitchen://api-index + kitchen_request. Call this only if that resource is missing or a path failed.",
       inputSchema: z.object({}),
       handler: async () => ok(CAPABILITIES),
     },
@@ -364,7 +379,7 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     {
       name: "kitchen_request",
       description:
-        "Raw Kitchen API call for a public /api path. Use a named hot-path tool when one exists. Otherwise read resource kitchen://api-index (or kitchen_capabilities.request_index) for method+path. Do not call /api/internal (Bearer 401). Query arrays serialize as key[]=value (Laravel). Example expand: { expand: [\"billing_profile\"] }.",
+        "Raw Kitchen API call for a public /api path. Use a named hot-path tool when one exists. Otherwise read resource kitchen://api-index (or kitchen_capabilities.request_index) for method+path. Do not call /api/internal (Bearer 401). Query arrays serialize as key[]=value (Laravel). Example expand: { expand: [\"billing_profile\"] }. For invoice writes, omit header/memo/footer_notes unless the user asked (kitchen://invoice-defaults).",
       inputSchema: z.object({
         method: z
           .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
@@ -1319,7 +1334,7 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     {
       name: "kitchen_create_invoice",
       description:
-        "Create an invoice (POST /invoices). Requires visibility. Optional client, billing_profile (fills Bill to), items, currency, folder, dates. Finalize/send are not on the public API.",
+        "Create an invoice (POST /invoices). Requires visibility. Optional client, billing_profile (fills Bill to), items, currency, folder, dates. Omit header, memo, footer_notes, and other Design & Details fields unless the user explicitly asked; Kitchen fills those from Settings → Invoices → Design & Details (kitchen://invoice-defaults). Finalize/send are not on the public API.",
       inputSchema: z.object({
         visibility,
         client: z.string().optional().describe("Client user id (u_...)"),
@@ -1336,8 +1351,18 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
         items: z.array(z.record(z.unknown())).optional(),
         discounts: z.array(z.record(z.unknown())).optional(),
         tax_items: z.array(z.record(z.unknown())).optional(),
-        memo: z.string().optional(),
-        footer_notes: z.string().optional(),
+        memo: z
+          .string()
+          .optional()
+          .describe(
+            "Omit unless the user explicitly asked to set memo. Kitchen fills this from Settings → Invoices → Design & Details. Sending it overrides the workspace default."
+          ),
+        footer_notes: z
+          .string()
+          .optional()
+          .describe(
+            "Omit unless the user explicitly asked to set the footer. Kitchen fills this from Settings → Invoices → Design & Details. Sending it overrides the workspace default. Public API max 255 characters; a longer workspace footer will be truncated."
+          ),
         language: z.string().optional().describe("Java locale, e.g. en_US or hr_HR"),
         number: z.string().optional(),
         shipping_amount: z.number().optional(),
@@ -1345,7 +1370,9 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
           .enum(["invoice_admin", "invoice_manager", "invoice_viewer"])
           .optional()
           .describe("Default team role when visibility is internal"),
-        extra: extraBody,
+        extra: extraBody.describe(
+          "Any extra Kitchen API fields not listed above. Do not include header, memo, footer_notes, footer, or other Design & Details defaults unless the user explicitly asked."
+        ),
       }),
       handler: async (args) => {
         try {
@@ -1383,7 +1410,7 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
     {
       name: "kitchen_update_invoice",
       description:
-        "Update an invoice (PUT /invoices/{id}). Include billing_profile (bp_...) to fill Bill to. Docs omit that field; the public API accepts it. Send a full payload when Kitchen requires existing items.",
+        "Update an invoice (PUT /invoices/{id}). Include billing_profile (bp_...) to fill Bill to. Docs omit that field; the public API accepts it. Send a full payload when Kitchen requires existing items. Omit header, memo, footer_notes, and other Design & Details fields unless the user explicitly asked; sending them overrides Settings → Invoices → Design & Details (kitchen://invoice-defaults).",
       inputSchema: z.object({
         id: z.string().describe("Invoice id (in_...)"),
         client: z.string().nullable().optional().describe("Client user id (u_...)"),
@@ -1398,13 +1425,27 @@ export function buildTools(client: KitchenClient): RegisteredTool[] {
         items: z.array(z.record(z.unknown())).optional(),
         discounts: z.array(z.record(z.unknown())).optional(),
         tax_items: z.array(z.record(z.unknown())).optional(),
-        memo: z.string().nullable().optional(),
-        footer_notes: z.string().nullable().optional(),
+        memo: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            "Omit unless the user explicitly asked to change memo. Kitchen already applied Settings → Invoices → Design & Details. Sending it overrides the workspace default."
+          ),
+        footer_notes: z
+          .string()
+          .nullable()
+          .optional()
+          .describe(
+            "Omit unless the user explicitly asked to change the footer. Kitchen already applied Settings → Invoices → Design & Details. Sending it overrides the workspace default. Public API max 255 characters; a longer workspace footer will be truncated."
+          ),
         language: z.string().optional(),
         number: z.string().optional(),
         shipping_amount: z.number().optional(),
         visibility: visibility.optional(),
-        extra: extraBody,
+        extra: extraBody.describe(
+          "Any extra Kitchen API fields not listed above. Do not include header, memo, footer_notes, footer, or other Design & Details defaults unless the user explicitly asked."
+        ),
       }),
       handler: async (args) => {
         try {

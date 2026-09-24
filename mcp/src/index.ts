@@ -11,6 +11,8 @@ import {
   API_INDEX_TEXT,
   API_INDEX_URI,
   CAPABILITIES_URI,
+  INVOICE_DEFAULTS_TEXT,
+  INVOICE_DEFAULTS_URI,
 } from "./hot-path";
 import { createClientFromEnv } from "./kitchen-client";
 import { CAPABILITIES, buildTools, SERVER_INSTRUCTIONS } from "./tools";
@@ -28,7 +30,7 @@ async function main() {
   const server = new McpServer(
     {
       name: `kitchen-co-mcp-unofficial:${profile}`,
-      version: "0.7.3",
+      version: "0.7.4",
     },
     {
       instructions: SERVER_INSTRUCTIONS,
@@ -59,7 +61,7 @@ async function main() {
     CAPABILITIES_URI,
     {
       description:
-        "Full Kitchen MCP catalog (hot_path, request_index, permissions, gaps). Same payload as kitchen_capabilities. Local to this MCP.",
+        "Full Kitchen MCP catalog (hot_path, request_index, permissions, invoice_defaults, gaps). Same payload as kitchen_capabilities. Local to this MCP.",
       mimeType: "application/json",
     },
     async (uri) => ({
@@ -68,6 +70,25 @@ async function main() {
           uri: uri.href,
           mimeType: "application/json",
           text: JSON.stringify(CAPABILITIES, null, 2),
+        },
+      ],
+    })
+  );
+
+  server.registerResource(
+    "kitchen-invoice-defaults",
+    INVOICE_DEFAULTS_URI,
+    {
+      description:
+        "Do not override Kitchen invoice Design & Details defaults (header, memo, footer_notes) unless the user explicitly asked. Local to this MCP.",
+      mimeType: "text/plain",
+    },
+    async (uri) => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "text/plain",
+          text: INVOICE_DEFAULTS_TEXT,
         },
       ],
     })
